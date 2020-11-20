@@ -22,7 +22,7 @@ jobs:
     - name: Build
       run: dotnet build --configuration Release --no-restore -r win-x64
     - name: Publish
-      run: dotnet publish --configuration Release --no-restore -r win-x64 -p:PublishSingleFile=true
+      run: dotnet publish --configuration Release --no-restore -r win-x64 -p:PublishSingleFile=true --self-contained false
     - name: Upload build artifact
       uses: actions/upload-artifact@v2
       with:
