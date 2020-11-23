@@ -24,8 +24,13 @@ jobs:
           # Ignores conclusion by default (thus using the most recent completed run when no other option is specified, regardless of conclusion)
           workflow_conclusion: success
           # Optional, will use the branch
-         # branch: master
+          # branch: master
+          # Optional, directory where to extract artifact
+          path: publish
 
+        # Now we do not have the ZIP anymore, so we must re-zip the extracted exe
+      - name: ZIP EXE for download
+        run: zip --junk-paths scepclient-win-x64 publish/scepclient-win-x64/ScepClient.exe
     
       - name: Create tag
         id: create_tag
