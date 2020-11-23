@@ -4,6 +4,10 @@ A .NET Core SCEP client
 
 Can be used to extend [SCEPman](https://www.scepman.com/) to easily distribute Kerberos Authentication certificates to AD Domain Controllers instead of only certificates for end-user devices.
 
+## Prerequisites
+
+Requires the [.NET Core 3.1 Runtime](https://dotnet.microsoft.com/download/dotnet-core/3.1). You need only the simple runtime, Desktop or ASP.NET may be used, but are not required. 
+
 ## Usage
 
 ### Domain Controllers
