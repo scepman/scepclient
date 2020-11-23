@@ -24,7 +24,7 @@ jobs:
           # Ignores conclusion by default (thus using the most recent completed run when no other option is specified, regardless of conclusion)
           workflow_conclusion: success
           # Optional, will use the branch
-          branch: master
+         # branch: master
           # Optional, directory where to extract artifact
           path: publish
     
