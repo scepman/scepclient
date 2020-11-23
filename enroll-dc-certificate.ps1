@@ -1,5 +1,5 @@
 <# 
-enroll-dc-certificate.ps1 Version: 20200917
+enroll-dc-certificate.ps1 Version: 20200922
 C. Hannebauer - Glueck & Kanja Consulting AG
 
 Checks whether a usable Kerberos Authentication certificate exists on the client.
