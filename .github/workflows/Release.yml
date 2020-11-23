@@ -25,8 +25,7 @@ jobs:
           workflow_conclusion: success
           # Optional, will use the branch
          # branch: master
-          # Optional, directory where to extract artifact
-          path: publish
+
     
       - name: Create tag
         id: create_tag
@@ -44,13 +43,19 @@ jobs:
           release_name: ${{ steps.create_tag.outputs.tag }}
           draft: true
           prerelease: false
+
+          # Some debug output
+        - name: where are we
+        run: pwd
+        - name: list files
+        run: ls -Rs
           
       - uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: publish/scepclient-win-x64.zip
+          asset_path: ./scepclient-win-x64.zip
           asset_name: scepclient-win-x64.zip
           asset_content_type: application/zip
 
