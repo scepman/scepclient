@@ -45,9 +45,9 @@ jobs:
           prerelease: false
 
           # Some debug output
-        - name: where are we
+      - name: where are we
         run: pwd
-        - name: list files
+      - name: list files
         run: ls -Rs
           
       - uses: actions/upload-release-asset@v1.0.1
