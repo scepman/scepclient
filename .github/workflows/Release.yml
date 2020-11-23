@@ -35,7 +35,7 @@ jobs:
       - name: Create tag
         id: create_tag
         run: |
-          tag=$(basename "${{ github.ref }}")
+          tag=$(date +"%Y%m%d-%H%M")
           echo "::set-output name=tag::$tag"
 
       - name: Create Draft Release
@@ -50,12 +50,13 @@ jobs:
           prerelease: false
 
           # Some debug output
-      - name: where are we
+      - name: [Debug] Where Are We
         run: pwd
-      - name: list files
+      - name: [Debug] List Files
         run: ls -Rs
           
-      - uses: actions/upload-release-asset@v1.0.1
+      - name: Upload Artifacts to Release
+        uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -64,7 +65,8 @@ jobs:
           asset_name: scepclient-win-x64.zip
           asset_content_type: application/zip
 
-      - uses: eregon/publish-release@v1
+      - name: Publish Release
+        uses: eregon/publish-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
