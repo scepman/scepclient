@@ -11,6 +11,23 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Download artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          # Optional, GitHub token
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          # Required, workflow file name or ID
+          workflow: dotnet-core.yml
+          # Optional, the conclusion of a completed workflow to search for
+          # Can be one of:
+          # "failure", "success", "neutral", "cancelled", "skipped", "timed_out", "action_required"
+          # Ignores conclusion by default (thus using the most recent completed run when no other option is specified, regardless of conclusion)
+          workflow_conclusion: success
+          # Optional, will use the branch
+          branch: master
+          # Optional, directory where to extract artifact
+          path: publish
+    
       - name: Create tag
         id: create_tag
         run: |
@@ -33,7 +50,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./scepclient-win-x64.zip
+          asset_path: publish/scepclient-win-x64.zip
           asset_name: scepclient-win-x64.zip
           asset_content_type: application/zip
 
