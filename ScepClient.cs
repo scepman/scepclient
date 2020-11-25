@@ -63,8 +63,8 @@ namespace ScepClient
                         args[2],    // PFX path
                         args[3],    // CER path
                         args.Length > 4 ? args[4] : null,       // PKCS#10OutputPath
-                        args.Length > 5 ? args[5] : "password",  // Challenge Password
-                        args.Length > 6 ? args[6] : null
+                        args.Length > 5 ? args[5] : "password", // Challenge Password
+                        args.Length > 6 ? args[6] : null        // CN of certificate
                     );
                     break;
                 case Command.submit:
