@@ -1,6 +1,6 @@
 # This creates a new release on GitHub
 
-name: Release Current Version
+name: Release Current .NET Core Version
 
 # Controls when the action will run. Workflow runs when manually triggered using the UI
 # or API.
@@ -30,12 +30,12 @@ jobs:
 
         # Now we do not have the ZIP anymore, so we must re-zip the extracted exe
       - name: ZIP EXE for download
-        run: zip --junk-paths scepclient-win-x64 publish/scepclient-win-x64/ScepClient.exe
+        run: zip --junk-paths scepclient-core-win-x64 publish/scepclient-win-x64/ScepClient.exe
     
       - name: Create tag
         id: create_tag
         run: |
-          tag=$(date +"%Y%m%d-%H%M")
+          tag=$(date +"%Y%m%d-%H%M-core")
           echo "::set-output name=tag::$tag"
 
       - name: Create Draft Release
@@ -61,8 +61,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./scepclient-win-x64.zip
-          asset_name: scepclient-win-x64.zip
+          asset_path: ./scepclient-core-win-x64.zip
+          asset_name: scepclient-core-win-x64.zip
           asset_content_type: application/zip
 
       - name: Publish Release
