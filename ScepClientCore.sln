@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30621.155
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScepClientCore", "ScepClientCore.csproj", "{38C8F0BA-128D-40F2-8393-F39C642E0E67}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScepClientCore", "core\ScepClientCore.csproj", "{9C04FF53-4C58-4A31-B6CA-663BE8F2B97A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScepClientConsole", "framework\ScepClientConsole.csproj", "{04149217-C827-4818-80E0-36BF84F98D8C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +13,14 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{38C8F0BA-128D-40F2-8393-F39C642E0E67}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{38C8F0BA-128D-40F2-8393-F39C642E0E67}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{38C8F0BA-128D-40F2-8393-F39C642E0E67}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{38C8F0BA-128D-40F2-8393-F39C642E0E67}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9C04FF53-4C58-4A31-B6CA-663BE8F2B97A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9C04FF53-4C58-4A31-B6CA-663BE8F2B97A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9C04FF53-4C58-4A31-B6CA-663BE8F2B97A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9C04FF53-4C58-4A31-B6CA-663BE8F2B97A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{04149217-C827-4818-80E0-36BF84F98D8C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{04149217-C827-4818-80E0-36BF84F98D8C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{04149217-C827-4818-80E0-36BF84F98D8C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{04149217-C827-4818-80E0-36BF84F98D8C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
