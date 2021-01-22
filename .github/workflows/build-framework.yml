@@ -1,0 +1,27 @@
+name: .NET Framework 4.6.2
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: mcr.microsoft.com/dotnet/framework/sdk:4.6.2
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: dotnet restore -r win-x64 framework/ScepClientConsole.csproj
+    - name: Build
+      run: dotnet build --configuration Release --no-restore -r win-x64 framework/ScepClientConsole.csproj
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: scepclient-win-x64
+        path: |
+          framework/bin/Release/ScepClientConsole.exe
+          framework/bin/Release/ScepClientConsole.exe.config
+          framework/bin/Release/*.dll
