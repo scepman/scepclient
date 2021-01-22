@@ -14,10 +14,12 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v2
-    - name: Install dependencies
-      run: dotnet restore -r win-x64 framework/ScepClientConsole.csproj
+    
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.2
+       
     - name: Build
-      run: dotnet build --configuration Release --no-restore -r win-x64 framework/ScepClientConsole.csproj
+      run: msbuild  framework/ScepClientConsole.csproj /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile
     - name: Upload build artifact
       uses: actions/upload-artifact@v2
       with:
