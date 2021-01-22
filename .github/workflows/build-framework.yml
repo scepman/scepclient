@@ -9,10 +9,11 @@ on:
 jobs:
   build:
 
-    runs-on: mcr.microsoft.com/dotnet/framework/sdk:4.6.2
+    runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout Code
+      uses: actions/checkout@v2
     - name: Install dependencies
       run: dotnet restore -r win-x64 framework/ScepClientConsole.csproj
     - name: Build
