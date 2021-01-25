@@ -24,7 +24,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: scepclient-win-x64
-        path: |
-          framework/bin/Release/ScepClientConsole.exe
-          framework/bin/Release/ScepClientConsole.exe.config
-          framework/bin/Release/*.dll
+        path: framework/bin/Release/*
