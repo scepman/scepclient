@@ -24,6 +24,7 @@ using Org.BouncyCastle.Crypto.Parameters;
 using System.DirectoryServices;
 using Org.BouncyCastle.Asn1.X509;
 using X509Extension = System.Security.Cryptography.X509Certificates.X509Extension;
+using DotNetCode;
 
 namespace ScepClient
 {
@@ -126,17 +127,37 @@ namespace ScepClient
 
             X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCert);
             byte[] issuedPkcs12 = SaveAsPkcs12(bcIssuedCert, rsaKeyPair, pfxPassword);
-            X509KeyStorageFlags storageFlags = X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.MachineKeySet;
             if (useDebugOutput)
-            {
                 File.WriteAllBytes(outputPath, issuedPkcs12);
-                storageFlags |= X509KeyStorageFlags.Exportable;
-            }
 
-            using X509Certificate2 issuedCertificateAndPrivate = new X509Certificate2(issuedPkcs12, pfxPassword, storageFlags);
+            ImportPFX2MachineStore(useDebugOutput, pfxPassword, issuedPkcs12);
+        }
+
+        /// <summary>
+        /// Import the certificate with private key to the machine MY store while force using Software KSP.
+        /// 
+        /// See https://stackoverflow.com/questions/51522330/c-sharp-import-certificate-and-key-pfx-into-cng-ksp
+        /// </summary>
+        private static void ImportPFX2MachineStore(bool useDebugOutput, string pfxPassword, byte[] issuedPkcs12)
+        {
+            using X509Certificate2 issuedCertificateAndPrivate = new X509Certificate2(issuedPkcs12, pfxPassword, X509KeyStorageFlags.Exportable);
+            RSACng keyFromPFx = new RSACng();
+            keyFromPFx.FromXmlString(issuedCertificateAndPrivate.GetRSAPrivateKey().ToXmlString(true));
+            var keyData = keyFromPFx.Key.Export(CngKeyBlobFormat.GenericPrivateBlob);
+            var keyParams = new CngKeyCreationParameters
+            {
+                ExportPolicy = useDebugOutput ? CngExportPolicies.AllowPlaintextExport : CngExportPolicies.None,
+                KeyCreationOptions = CngKeyCreationOptions.MachineKey,
+                Provider = CngProvider.MicrosoftSoftwareKeyStorageProvider
+            };
+            keyParams.Parameters.Add(new CngProperty(CngKeyBlobFormat.GenericPrivateBlob.Format, keyData, CngPropertyOptions.None));
+            CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
+
+            X509Certificate2 certWithCNGKey = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
+            certWithCNGKey = certWithCNGKey.CopyWithPersistedCngKeyFixed(key);
             using X509Store storeLmMy = new X509Store(StoreName.My, StoreLocation.LocalMachine);
             storeLmMy.Open(OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
-            storeLmMy.Add(issuedCertificateAndPrivate);
+            storeLmMy.Add(certWithCNGKey);
             storeLmMy.Close();
         }
 

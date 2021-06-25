@@ -71,6 +71,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DerEncoding.cs" />
+    <Compile Include="DotNetCode\CertificateExtensionsCommon.cs" />
+    <Compile Include="DotNetCode\SafeCertContextHandle.cs" />
+    <Compile Include="DotNetCode\X509Native.cs" />
     <Compile Include="LDAPTools.cs" />
     <Compile Include="Oids.cs" />
     <Compile Include="ScepClient.cs" />
