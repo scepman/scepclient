@@ -223,11 +223,11 @@ namespace ScepClient
             return result?.Properties["netbiosname"][0].ToString();
         }
 
-        private static byte[] SaveAsPkcs12(X509Certificate selfSignedCertBC, AsymmetricCipherKeyPair rsaKeyPair, string password)
+        private static byte[] SaveAsPkcs12(X509Certificate certificate, AsymmetricCipherKeyPair rsaKeyPair, string password)
         {
             MemoryStream p12Stream = new MemoryStream();
             Pkcs12Store selfSignedExport = new Pkcs12Store();
-            selfSignedExport.SetKeyEntry("FirstKey", new AsymmetricKeyEntry(rsaKeyPair.Private), new X509CertificateEntry[] { new X509CertificateEntry(selfSignedCertBC) });
+            selfSignedExport.SetKeyEntry("FirstKey", new AsymmetricKeyEntry(rsaKeyPair.Private), new X509CertificateEntry[] { new X509CertificateEntry(certificate) });
             selfSignedExport.Save(p12Stream, password.ToCharArray(), new SecureRandom());
             byte[] baSelfSignedCert = p12Stream.ToArray();
             return baSelfSignedCert;
