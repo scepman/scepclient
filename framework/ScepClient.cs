@@ -35,7 +35,7 @@ namespace ScepClient
         public static void Main(string[] args)
         {
             Console.WriteLine("SCEPClient");
-            Console.WriteLine("2020 by Glueck & Kanja, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
+            Console.WriteLine("2021 by glueckkanja-gab, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
             Console.WriteLine();
             Console.WriteLine("Usage: ScepClient.exe <command> <URL> <further parameters...>");
             Console.WriteLine();
