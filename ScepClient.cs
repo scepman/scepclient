@@ -22,12 +22,15 @@ using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
 using System.DirectoryServices;
+using Org.BouncyCastle.Asn1.X509;
+using X509Extension = System.Security.Cryptography.X509Certificates.X509Extension;
+using DotNetCode;
 
 namespace ScepClient
 {
     class ScepClient
     {
-        enum Command { gennew, submit, newdccert, newdccertext };
+        enum Command { gennew, submit, newdccert };
 
         public static void Main(string[] args)
         {
@@ -44,26 +47,19 @@ namespace ScepClient
             Console.WriteLine("ScepClient.exe newdccert <URL> challengePassword [Pkcs12DebugOutputPath]");
             Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123");
             Console.WriteLine();
-            Console.WriteLine("Enroll for a new Domain Controller certificate with additional DNS names in SAN:");
-            Console.WriteLine("ScepClient.exe newdccertext <URL> challengePassword Path2DNSList [Pkcs12DebugOutputPath]");
-            Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
-            Console.WriteLine();
             Console.WriteLine("Submit an existing request (debug only):");
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
             Console.WriteLine("Example: ScepClient submit http://ADCS_HOST/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
             Console.WriteLine();
 
-            Command currentCommand = Enum.Parse<Command>(args[0]);
+            Command currentCommand;
+            Enum.TryParse<Command>(args[0], out currentCommand);
             string scepURL = args[1];
 
             switch(currentCommand)
             {
                 case Command.newdccert:
                     GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
-                    break;
-                case Command.newdccertext:
-                    string[] additionalDNSEntries = File.ReadAllText(args[3]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
                     break;
                 case Command.gennew:
                     GenerateNew(
@@ -109,14 +105,14 @@ namespace ScepClient
             File.WriteAllBytes(certOutputPath, binIssuedCert);
         }
 
-        private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
+        private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath)
         {
             bool useDebugOutput = !string.IsNullOrEmpty(outputPath);
             string pfxPassword = useDebugOutput ? "password" : PasswordForTemporaryKeys;
 
             AsymmetricCipherKeyPair rsaKeyPair = GenerateRSAKeyPair(2048);
 
-            Pkcs10CertificationRequest request = CreatePKCS10ForComputer(challengePassword, rsaKeyPair, additionalDNSEntries);
+            Pkcs10CertificationRequest request = CreatePKCS10ForComputer(challengePassword, rsaKeyPair);
 
             byte[] pkcs10 = request.GetDerEncoded();
 
@@ -157,22 +153,21 @@ namespace ScepClient
             keyParams.Parameters.Add(new CngProperty(CngKeyBlobFormat.GenericPrivateBlob.Format, keyData, CngPropertyOptions.None));
             CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
 
-            RSACng rsaCNG = new RSACng(key);
-            
             X509Certificate2 certWithCNGKey = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
-            certWithCNGKey = certWithCNGKey.CopyWithPrivateKey(rsaCNG);
-            using X509Store storeLmMy = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
+            certWithCNGKey = certWithCNGKey.CopyWithPersistedCngKeyFixed(key);
+            using X509Store storeLmMy = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+            storeLmMy.Open(OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
             storeLmMy.Add(certWithCNGKey);
             storeLmMy.Close();
         }
 
-        private static Pkcs10CertificationRequest CreatePKCS10ForComputer(string challengePassword, AsymmetricCipherKeyPair rsaKeyPair, IEnumerable<string> additionalDNSEntries)
+        private static Pkcs10CertificationRequest CreatePKCS10ForComputer(string challengePassword, AsymmetricCipherKeyPair rsaKeyPair)
         {
             //            GenerateSelfSignedCertificate("CN=" + LDAPTools.QuoteRDN(fqdn), out RSA algRSA, out CertificateRequest req, out X509Certificate2 selfSignedCert);
 
             AsnX509.X509ExtensionsGenerator extensions = new AsnX509.X509ExtensionsGenerator();
 
-            ISet<string> sanDNSCollection = new HashSet<string>(additionalDNSEntries ?? new string[0]);
+            ISet<string> sanDNSCollection = new HashSet<string>();
 
             string hostName = Dns.GetHostName();
             sanDNSCollection.Add(hostName);
@@ -188,11 +183,15 @@ namespace ScepClient
                 sanDNSCollection.Add(NetBIOSDomain);
 #endif // !DEBUG
 
-            SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
-            foreach (string dnsName in sanDNSCollection)
-                sanBuilder.AddDnsName(dnsName);
-            System.Security.Cryptography.X509Certificates.X509Extension sanExtension = sanBuilder.Build();
-            extensions.AddExtension(new DerObjectIdentifier(sanExtension.Oid.Value), sanExtension.Critical, sanExtension.RawData);
+
+            GeneralNames subjectAlternateNames = new GeneralNames(
+                sanDNSCollection
+                    .Select(dnsName => new GeneralName(GeneralName.DnsName, dnsName))
+                    .ToArray()
+                );
+
+            extensions.AddExtension(X509Extensions.SubjectAlternativeName, false, subjectAlternateNames);
+
 
             BCPkcs.AttributePkcs extensionRequest = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtExtensionRequest, new DerSet(extensions.Generate()));
 
@@ -275,20 +274,13 @@ namespace ScepClient
 
         private static Pkcs10CertificationRequest CreatePKCS10(string sCN, string challengePassword, AsymmetricCipherKeyPair rsaKeyPair)
         {
-            BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
-
-            AsnX509.X509ExtensionsGenerator extensions = new AsnX509.X509ExtensionsGenerator();
-            SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
-            sanBuilder.AddDnsName(sCN);
-            System.Security.Cryptography.X509Certificates.X509Extension sanExtension = sanBuilder.Build();
-            extensions.AddExtension(new DerObjectIdentifier(sanExtension.Oid.Value), sanExtension.Critical, sanExtension.RawData);
-            BCPkcs.AttributePkcs extensionRequest = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtExtensionRequest, new DerSet(extensions.Generate()));
+             BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
 
             Pkcs10CertificationRequest request = new Pkcs10CertificationRequest(
                 "SHA256WITHRSA",
                 new AsnX509.X509Name(new DerObjectIdentifier[] { AsnX509.X509Name.CN }, new string[] { sCN }),
                 rsaKeyPair.Public,
-                new DerSet(extensionRequest, attrPassword),
+                new DerSet(attrPassword),
                 rsaKeyPair.Private
             );
             return request;
@@ -463,7 +455,7 @@ namespace ScepClient
                 string failString = string.Empty;
                 CryptographicAttributeObject failAttribute = attributes.First(att => att.Oid.Value == Oids.Scep.FailInfo.Value);
                 if (null != failAttribute)
-                    failString = string.Join(';',
+                    failString = string.Join(";",
                         failAttribute.Values.OfType<AsnEncodedData>().Select(aed => Convert.ToBase64String(aed.RawData)));
                 throw new Exception("There was a Failure when requesting a certificate! FailString(B64): " + failString);
             }
