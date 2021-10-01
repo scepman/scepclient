@@ -3,9 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30621.155
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScepClientCore", "core\ScepClientCore.csproj", "{9C04FF53-4C58-4A31-B6CA-663BE8F2B97A}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScepClientConsole", "framework\ScepClientConsole.csproj", "{04149217-C827-4818-80E0-36BF84F98D8C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScepClientCore", "ScepClient.csproj", "{9C04FF53-4C58-4A31-B6CA-663BE8F2B97A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

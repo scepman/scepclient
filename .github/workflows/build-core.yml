@@ -2,9 +2,9 @@ name: .NET Core
 
 on:
   push:
-    branches: [ master ]
+    branches: [ core31 ]
   pull_request:
-    branches: [ master ]
+    branches: [ core31 ]
 
 jobs:
   build:
@@ -18,13 +18,13 @@ jobs:
       with:
         dotnet-version: 3.1.301
     - name: Install dependencies
-      run: dotnet restore -r win-x64 core/ScepClientCore.csproj
+      run: dotnet restore -r win-x64 ScepClient.csproj
     - name: Build
-      run: dotnet build --configuration Release --no-restore -r win-x64 core/ScepClientCore.csproj
+      run: dotnet build --configuration Release --no-restore -r win-x64 ScepClient.csproj
     - name: Publish
-      run: dotnet publish --configuration Release --no-restore -r win-x64 -p:PublishSingleFile=true --self-contained false core/ScepClientCore.csproj
+      run: dotnet publish --configuration Release --no-restore -r win-x64 -p:PublishSingleFile=true --self-contained false ScepClient.csproj
     - name: Upload build artifact
       uses: actions/upload-artifact@v2
       with:
         name: scepclient-win-x64
-        path: core/bin/Release/netcoreapp3.1/win-x64/publish/*
+        path: bin/Release/netcoreapp3.1/win-x64/publish/*
