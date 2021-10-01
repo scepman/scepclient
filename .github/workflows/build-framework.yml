@@ -2,9 +2,9 @@ name: .NET Framework 4.6.2
 
 on:
   push:
-    branches: [ master ]
+    branches: [ Framework462 ]
   pull_request:
-    branches: [ master ]
+    branches: [ Framework462 ]
 
 jobs:
   build:
@@ -19,9 +19,9 @@ jobs:
       uses: microsoft/setup-msbuild@v1.0.2
        
     - name: Build
-      run: msbuild -restore framework/ScepClientConsole.csproj /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile
+      run: msbuild -restore ScepClient.csproj /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile
     - name: Upload build artifact
       uses: actions/upload-artifact@v2
       with:
         name: scepclient-win-x64
-        path: framework/bin/Release/*
+        path: bin/Release/*
