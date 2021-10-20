@@ -38,7 +38,7 @@ Write-Information "Enroll DC Certificate Version 20200922"
 
 ## Search for an appropriate certificate
 $sOidKerberosAuthentication = "1.3.6.1.5.2.3.5"
-$CandidateCerts = @(dir cert:\LocalMachine\My | ? { $_.HasPrivateKey -and ( ( ($_.EnhancedKeyUsageList | ? { $_.ObjectId -eq $sOidKerberosAuthentication }) -ne $null) -OR ($_.Extensions| ? {$_.EnhancedKeyUsages | ? {$_.Value -eq $sOidSecureEmail} } ) ) })
+$CandidateCerts = @(dir cert:\LocalMachine\My | ? { $_.HasPrivateKey -and ( ( ($_.EnhancedKeyUsageList | ? { $_.ObjectId -eq $sOidKerberosAuthentication }) -ne $null) -OR ($_.Extensions| ? {$_.EnhancedKeyUsages | ? {$_.Value -eq $sOidKerberosAuthentication} } ) ) })
 Write-Debug "There are $($CandidateCerts.Length) certificates for Kerberos Authentication"
 $ValidCandidateCerts = @($CandidateCerts | ? { $_.Verify() })
 Write-Debug "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid"
