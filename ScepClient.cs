@@ -277,11 +277,18 @@ namespace ScepClient
         {
             BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
 
+            AsnX509.X509ExtensionsGenerator extensions = new AsnX509.X509ExtensionsGenerator();
+            SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
+            sanBuilder.AddDnsName(sCN);
+            System.Security.Cryptography.X509Certificates.X509Extension sanExtension = sanBuilder.Build();
+            extensions.AddExtension(new DerObjectIdentifier(sanExtension.Oid.Value), sanExtension.Critical, sanExtension.RawData);
+            BCPkcs.AttributePkcs extensionRequest = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtExtensionRequest, new DerSet(extensions.Generate()));
+
             Pkcs10CertificationRequest request = new Pkcs10CertificationRequest(
                 "SHA256WITHRSA",
                 new AsnX509.X509Name(new DerObjectIdentifier[] { AsnX509.X509Name.CN }, new string[] { sCN }),
                 rsaKeyPair.Public,
-                new DerSet(attrPassword),
+                new DerSet(extensionRequest, attrPassword),
                 rsaKeyPair.Private
             );
             return request;
