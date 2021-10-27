@@ -27,7 +27,7 @@ namespace ScepClient
 {
     class ScepClient
     {
-        enum Command { gennew, submit, newdccert, newdccertext };
+        enum Command { gennew, gennewext, submit, newdccert, newdccertext };
 
         public static void Main(string[] args)
         {
@@ -40,13 +40,17 @@ namespace ScepClient
             Console.WriteLine("ScepClient.exe gennew <URL> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath] [SCEPChallengePassword] [CN]");
             Console.WriteLine("Example: ScepClient gennew http://ADCS_HOST/certsrv/mscep/mscep.dll newcert.pfx newcert.cer");
             Console.WriteLine();
+            Console.WriteLine("Generate a new key and submit, with additional DNS names in SAN:");
+            Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList> <CN> <PFXOutputPath> [CertOutputPath] [PKCS10OutputPath]");
+            Console.WriteLine("Example: ScepClient gennewext http://scepman-1234.azurewebsites.com/static password sanlist.txt \"Server Certificate\" newcert.pfx newcert.cer");
+            Console.WriteLine();
             Console.WriteLine("Enroll for a new Domain Controller certificate:");
-            Console.WriteLine("ScepClient.exe newdccert <URL> challengePassword [Pkcs12DebugOutputPath]");
+            Console.WriteLine("ScepClient.exe newdccert <URL> <SCEPChallengePassword> [Pkcs12DebugOutputPath]");
             Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123");
             Console.WriteLine();
             Console.WriteLine("Enroll for a new Domain Controller certificate with additional DNS names in SAN:");
-            Console.WriteLine("ScepClient.exe newdccertext <URL> challengePassword Path2DNSList [Pkcs12DebugOutputPath]");
-            Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
+            Console.WriteLine("ScepClient.exe newdccertext <URL> <SCEPChallengePassword> <Path2DNSList> [Pkcs12DebugOutputPath]");
+            Console.WriteLine("Example: ScepClient newdccerttext http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
             Console.WriteLine();
             Console.WriteLine("Submit an existing request (debug only):");
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
@@ -56,13 +60,16 @@ namespace ScepClient
             Command currentCommand = Enum.Parse<Command>(args[0]);
             string scepURL = args[1];
 
-            switch(currentCommand)
+            string[] additionalDNSEntries = null;
+            if (currentCommand == Command.newdccertext || currentCommand == Command.gennewext)
+                additionalDNSEntries = File.ReadAllText(args[3]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+            switch (currentCommand)
             {
                 case Command.newdccert:
                     GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
                     break;
                 case Command.newdccertext:
-                    string[] additionalDNSEntries = File.ReadAllText(args[3]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
                     break;
                 case Command.gennew:
@@ -72,7 +79,19 @@ namespace ScepClient
                         args[3],    // CER path
                         args.Length > 4 ? args[4] : null,       // PKCS#10OutputPath
                         args.Length > 5 ? args[5] : "password", // Challenge Password
-                        args.Length > 6 ? args[6] : null        // CN of certificate
+                        args.Length > 6 ? args[6] : null,        // CN of certificate
+                        new string[0]
+                    );
+                    break;
+                case Command.gennewext:
+                    GenerateNew(
+                        scepURL,    // SCEP URL
+                        args[5],    // PFX path
+                        args[6],    // CER path
+                        args.Length > 7 ? args[7] : null,       // PKCS#10OutputPath
+                        args[2], // Challenge Password
+                        args[4],  // CN of certificate
+                        additionalDNSEntries
                     );
                     break;
                 case Command.submit:
@@ -273,13 +292,14 @@ namespace ScepClient
         }
 
 
-        private static Pkcs10CertificationRequest CreatePKCS10(string sCN, string challengePassword, AsymmetricCipherKeyPair rsaKeyPair)
+        private static Pkcs10CertificationRequest CreatePKCS10(string sCN, string challengePassword, AsymmetricCipherKeyPair rsaKeyPair, IEnumerable<string> additionalDNSEntries)
         {
             BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
 
             AsnX509.X509ExtensionsGenerator extensions = new AsnX509.X509ExtensionsGenerator();
             SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
-            sanBuilder.AddDnsName(sCN);
+            foreach (string additionalDNSName in additionalDNSEntries)
+                sanBuilder.AddDnsName(additionalDNSName);
             System.Security.Cryptography.X509Certificates.X509Extension sanExtension = sanBuilder.Build();
             extensions.AddExtension(new DerObjectIdentifier(sanExtension.Oid.Value), sanExtension.Critical, sanExtension.RawData);
             BCPkcs.AttributePkcs extensionRequest = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtExtensionRequest, new DerSet(extensions.Generate()));
@@ -294,11 +314,11 @@ namespace ScepClient
             return request;
         }
 
-        private static void GenerateNew(string scepURL, string pfxOutputPath, string certOutputPath, string pkcs10OutputPath, string challengePassword, string cN = null)
+        private static void GenerateNew(string scepURL, string pfxOutputPath, string certOutputPath, string pkcs10OutputPath, string challengePassword, string cN, IEnumerable<string> additionalDNSEntries)
         {
             AsymmetricCipherKeyPair rsaKeyPair = GenerateRSAKeyPair(2048);
 
-            Pkcs10CertificationRequest request = CreatePKCS10(cN ?? Guid.NewGuid().ToString(), challengePassword, rsaKeyPair);
+            Pkcs10CertificationRequest request = CreatePKCS10(cN ?? Guid.NewGuid().ToString(), challengePassword, rsaKeyPair, additionalDNSEntries);
 
             byte[] pkcs10 = request.GetDerEncoded();
             if (!string.IsNullOrWhiteSpace(pkcs10OutputPath))
