@@ -24,6 +24,7 @@ using Org.BouncyCastle.Crypto.Parameters;
 using System.DirectoryServices;
 using Org.BouncyCastle.Asn1.X509;
 using X509Extension = System.Security.Cryptography.X509Certificates.X509Extension;
+using System.Reflection;
 
 namespace ScepClient
 {
@@ -43,8 +44,8 @@ namespace ScepClient
             Console.WriteLine("Example: ScepClient gennew http://ADCS_HOST/certsrv/mscep/mscep.dll newcert.pfx newcert.cer");
             Console.WriteLine();
             Console.WriteLine("Generate a new key and submit, with additional DNS names in SAN:");
-            Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList> <CN> <PFXOutputPath> [CertOutputPath] [PKCS10OutputPath]");
-            Console.WriteLine("Example: ScepClient gennewext http://scepman-1234.azurewebsites.com/static password sanlist.txt \"Server Certificate\" newcert.pfx newcert.cer");
+            Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList> <Path2EnhancedKeyUsage> <CN> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath]");
+            Console.WriteLine("Example: ScepClient gennewext http://scepman-1234.azurewebsites.com/static password sanlist.txt usagelist.txt \"Server Certificate\" newcert.pfx newcert.cer");
             Console.WriteLine();
             Console.WriteLine("Enroll for a new Domain Controller certificate:");
             Console.WriteLine("ScepClient.exe newdccert <URL> <SCEPChallengePassword> [Pkcs12DebugOutputPath]");
@@ -82,18 +83,21 @@ namespace ScepClient
                         args.Length > 4 ? args[4] : null,       // PKCS#10OutputPath
                         args.Length > 5 ? args[5] : "password", // Challenge Password
                         args.Length > 6 ? args[6] : null,        // CN of certificate
-                        new string[0]
+                        new string[0],
+                        null
                     );
                     break;
                 case Command.gennewext:
+                    string[] additionalKeyPurposes = File.ReadAllText(args[4]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     GenerateNew(
                         scepURL,    // SCEP URL
-                        args[5],    // PFX path
-                        args[6],    // CER path
-                        args.Length > 7 ? args[7] : null,       // PKCS#10OutputPath
+                        args[6],    // PFX path
+                        args[7],    // CER path
+                        args.Length > 8 ? args[8] : null,       // PKCS#10OutputPath
                         args[2], // Challenge Password
-                        args[4],  // CN of certificate
-                        additionalDNSEntries
+                        args[5],  // CN of certificate
+                        additionalDNSEntries,
+                        additionalKeyPurposes
                     );
                     break;
                 case Command.submit:
@@ -273,7 +277,7 @@ namespace ScepClient
         }
 
 
-        private static Pkcs10CertificationRequest CreatePKCS10(string sCN, string challengePassword, AsymmetricCipherKeyPair rsaKeyPair, IEnumerable<string> additionalDNSEntries)
+        private static Pkcs10CertificationRequest CreatePKCS10(string sCN, string challengePassword, AsymmetricCipherKeyPair rsaKeyPair, IEnumerable<string> additionalDNSEntries, IEnumerable<string> keyPurposes = null)
         {
             BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
 
@@ -284,6 +288,12 @@ namespace ScepClient
                     .ToArray()
                 );
             extensions.AddExtension(X509Extensions.SubjectAlternativeName, false, subjectAlternateNames);
+
+            if (null != keyPurposes)
+            {
+                Asn1Encodable ekuExtension = new ExtendedKeyUsage(keyPurposes.Select(keyPurposeString => ParseKeyPurpose(keyPurposeString)));
+                extensions.AddExtension(X509Extensions.ExtendedKeyUsage, false, ekuExtension);
+            }
 
             BCPkcs.AttributePkcs extensionRequest = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtExtensionRequest, new DerSet(extensions.Generate()));
 
@@ -297,11 +307,28 @@ namespace ScepClient
             return request;
         }
 
-        private static void GenerateNew(string scepURL, string pfxOutputPath, string certOutputPath, string pkcs10OutputPath, string challengePassword, string cN, IEnumerable<string> additionalDNSEntries)
+        /// <summary>
+        /// Pass a Key Purpose for Extended Key Usage either by name or by OID and get the corresponding BC type KeyPurposeID
+        /// </summary>
+        private static KeyPurposeID ParseKeyPurpose(string keyPurpose)
+        {
+            IEnumerable<FieldInfo> knownKeyPurposeFields = typeof(KeyPurposeID).GetFields(BindingFlags.Static | BindingFlags.Public)
+                .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID)); // get known Key Purposes from Bouncy Castle class
+
+                // now match key purposes either by name (partial) or by OID value (exact)
+            FieldInfo matchingPurpose = knownKeyPurposeFields
+                .SingleOrDefault(kpField => 
+                kpField.Name.Contains(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ||
+                (kpField.GetValue(null)?.ToString().Equals(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ?? false));
+
+            return (KeyPurposeID)matchingPurpose?.GetValue(null);
+        }
+
+        private static void GenerateNew(string scepURL, string pfxOutputPath, string certOutputPath, string pkcs10OutputPath, string challengePassword, string cN, IEnumerable<string> additionalDNSEntries, IEnumerable<string> keyPurposes)
         {
             AsymmetricCipherKeyPair rsaKeyPair = GenerateRSAKeyPair(2048);
 
-            Pkcs10CertificationRequest request = CreatePKCS10(cN ?? Guid.NewGuid().ToString(), challengePassword, rsaKeyPair, additionalDNSEntries);
+            Pkcs10CertificationRequest request = CreatePKCS10(cN ?? Guid.NewGuid().ToString(), challengePassword, rsaKeyPair, additionalDNSEntries, keyPurposes);
 
             byte[] pkcs10 = request.GetDerEncoded();
             if (!string.IsNullOrWhiteSpace(pkcs10OutputPath))
