@@ -189,10 +189,6 @@ namespace ScepClient
 
         private static Pkcs10CertificationRequest CreatePKCS10ForComputer(string challengePassword, AsymmetricCipherKeyPair rsaKeyPair, IEnumerable<string> additionalDNSEntries)
         {
-            //            GenerateSelfSignedCertificate("CN=" + LDAPTools.QuoteRDN(fqdn), out RSA algRSA, out CertificateRequest req, out X509Certificate2 selfSignedCert);
-
-            AsnX509.X509ExtensionsGenerator extensions = new AsnX509.X509ExtensionsGenerator();
-
             ISet<string> sanDNSCollection = new HashSet<string>(additionalDNSEntries ?? new string[0]);
 
             string hostName = Dns.GetHostName();
@@ -209,25 +205,7 @@ namespace ScepClient
                 sanDNSCollection.Add(NetBIOSDomain);
 #endif // !DEBUG
 
-            GeneralNames subjectAlternateNames = new GeneralNames(
-                sanDNSCollection
-                    .Select(dnsName => new GeneralName(GeneralName.DnsName, dnsName))
-                    .ToArray()
-                );
-            extensions.AddExtension(X509Extensions.SubjectAlternativeName, false, subjectAlternateNames);
-
-            BCPkcs.AttributePkcs extensionRequest = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtExtensionRequest, new DerSet(extensions.Generate()));
-
-            BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
-
-            Pkcs10CertificationRequest request = new Pkcs10CertificationRequest(
-                "SHA256WITHRSA",
-                new AsnX509.X509Name(new DerObjectIdentifier[] { AsnX509.X509Name.CN }, new string[] { fqdn }),
-                rsaKeyPair.Public,
-                new DerSet(extensionRequest, attrPassword),
-                rsaKeyPair.Private
-            );
-            return request;
+            return CreatePKCS10(fqdn, challengePassword, rsaKeyPair, sanDNSCollection);
         }
 
         /// <summary>
