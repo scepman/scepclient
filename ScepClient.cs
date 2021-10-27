@@ -30,7 +30,7 @@ namespace ScepClient
 {
     class ScepClient
     {
-        enum Command { gennew, submit, newdccert };
+        enum Command { gennew, submit, newdccert, newdccertext };
 
         public static void Main(string[] args)
         {
@@ -47,6 +47,10 @@ namespace ScepClient
             Console.WriteLine("ScepClient.exe newdccert <URL> challengePassword [Pkcs12DebugOutputPath]");
             Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123");
             Console.WriteLine();
+            Console.WriteLine("Enroll for a new Domain Controller certificate with additional DNS names in SAN:");
+            Console.WriteLine("ScepClient.exe newdccertext <URL> challengePassword Path2DNSList [Pkcs12DebugOutputPath]");
+            Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
+            Console.WriteLine();
             Console.WriteLine("Submit an existing request (debug only):");
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
             Console.WriteLine("Example: ScepClient submit http://ADCS_HOST/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
@@ -60,6 +64,10 @@ namespace ScepClient
             {
                 case Command.newdccert:
                     GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
+                    break;
+                case Command.newdccertext:
+                    string[] additionalDNSEntries = File.ReadAllText(args[3]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
                     break;
                 case Command.gennew:
                     GenerateNew(
@@ -105,14 +113,14 @@ namespace ScepClient
             File.WriteAllBytes(certOutputPath, binIssuedCert);
         }
 
-        private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath)
+        private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
         {
             bool useDebugOutput = !string.IsNullOrEmpty(outputPath);
             string pfxPassword = useDebugOutput ? "password" : PasswordForTemporaryKeys;
 
             AsymmetricCipherKeyPair rsaKeyPair = GenerateRSAKeyPair(2048);
 
-            Pkcs10CertificationRequest request = CreatePKCS10ForComputer(challengePassword, rsaKeyPair);
+            Pkcs10CertificationRequest request = CreatePKCS10ForComputer(challengePassword, rsaKeyPair, additionalDNSEntries);
 
             byte[] pkcs10 = request.GetDerEncoded();
 
@@ -161,13 +169,13 @@ namespace ScepClient
             storeLmMy.Close();
         }
 
-        private static Pkcs10CertificationRequest CreatePKCS10ForComputer(string challengePassword, AsymmetricCipherKeyPair rsaKeyPair)
+        private static Pkcs10CertificationRequest CreatePKCS10ForComputer(string challengePassword, AsymmetricCipherKeyPair rsaKeyPair, IEnumerable<string> additionalDNSEntries)
         {
             //            GenerateSelfSignedCertificate("CN=" + LDAPTools.QuoteRDN(fqdn), out RSA algRSA, out CertificateRequest req, out X509Certificate2 selfSignedCert);
 
             AsnX509.X509ExtensionsGenerator extensions = new AsnX509.X509ExtensionsGenerator();
 
-            ISet<string> sanDNSCollection = new HashSet<string>();
+            ISet<string> sanDNSCollection = new HashSet<string>(additionalDNSEntries ?? new string[0]);
 
             string hostName = Dns.GetHostName();
             sanDNSCollection.Add(hostName);
@@ -182,7 +190,6 @@ namespace ScepClient
             if (!string.IsNullOrEmpty(NetBIOSDomain))
                 sanDNSCollection.Add(NetBIOSDomain);
 #endif // !DEBUG
-
 
             GeneralNames subjectAlternateNames = new GeneralNames(
                 sanDNSCollection
@@ -290,7 +297,7 @@ namespace ScepClient
                 "SHA256WITHRSA",
                 new AsnX509.X509Name(new DerObjectIdentifier[] { AsnX509.X509Name.CN }, new string[] { sCN }),
                 rsaKeyPair.Public,
-                new DerSet(attrPassword),
+                new DerSet(extensionRequest, attrPassword),
                 rsaKeyPair.Private
             );
             return request;
