@@ -22,6 +22,8 @@ using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
 using System.DirectoryServices;
+using Org.BouncyCastle.Asn1.X509;
+using X509Extension = System.Security.Cryptography.X509Certificates.X509Extension;
 
 namespace ScepClient
 {
@@ -207,11 +209,12 @@ namespace ScepClient
                 sanDNSCollection.Add(NetBIOSDomain);
 #endif // !DEBUG
 
-            SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
-            foreach (string dnsName in sanDNSCollection)
-                sanBuilder.AddDnsName(dnsName);
-            System.Security.Cryptography.X509Certificates.X509Extension sanExtension = sanBuilder.Build();
-            extensions.AddExtension(new DerObjectIdentifier(sanExtension.Oid.Value), sanExtension.Critical, sanExtension.RawData);
+            GeneralNames subjectAlternateNames = new GeneralNames(
+                sanDNSCollection
+                    .Select(dnsName => new GeneralName(GeneralName.DnsName, dnsName))
+                    .ToArray()
+                );
+            extensions.AddExtension(X509Extensions.SubjectAlternativeName, false, subjectAlternateNames);
 
             BCPkcs.AttributePkcs extensionRequest = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtExtensionRequest, new DerSet(extensions.Generate()));
 
@@ -297,11 +300,13 @@ namespace ScepClient
             BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
 
             AsnX509.X509ExtensionsGenerator extensions = new AsnX509.X509ExtensionsGenerator();
-            SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
-            foreach (string additionalDNSName in additionalDNSEntries)
-                sanBuilder.AddDnsName(additionalDNSName);
-            System.Security.Cryptography.X509Certificates.X509Extension sanExtension = sanBuilder.Build();
-            extensions.AddExtension(new DerObjectIdentifier(sanExtension.Oid.Value), sanExtension.Critical, sanExtension.RawData);
+            GeneralNames subjectAlternateNames = new GeneralNames(
+                additionalDNSEntries
+                    .Select(dnsName => new GeneralName(GeneralName.DnsName, dnsName))
+                    .ToArray()
+                );
+            extensions.AddExtension(X509Extensions.SubjectAlternativeName, false, subjectAlternateNames);
+
             BCPkcs.AttributePkcs extensionRequest = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtExtensionRequest, new DerSet(extensions.Generate()));
 
             Pkcs10CertificationRequest request = new Pkcs10CertificationRequest(
