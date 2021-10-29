@@ -6,7 +6,9 @@ Can be used to extend [SCEPman](https://www.scepman.com/) to easily distribute K
 
 ## Prerequisites
 
-Requires the [.NET Core 3.1 Runtime](https://dotnet.microsoft.com/download/dotnet-core/3.1). You need only the simple runtime, Desktop or ASP.NET may be used, but are not required. 
+Requires the [.NET Core 3.1 Runtime](https://dotnet.microsoft.com/download/dotnet-core/3.1). You need only the simple runtime, Desktop or ASP.NET may be used, but are not required.
+
+There is also a version for .NET Framework 4.6.2 available that may runs directly on Windows Server 2012 R2 and newer.
 
 ## Usage
 
@@ -16,7 +18,7 @@ See the [SCEPman documentation](https://glueckkanja.gitbook.io/scepman/scepman-c
 
 ### Debugging
 
-The sub commands `gennew` and `submit` can be used to debug a SCEP service. Just execute scepclient.exe without any parameters to see usage information (and do not get irritated by the exception, it does no harm).
+The sub commands `gennew`, `gennewext`, and `submit` can be used to debug a SCEP service. Just execute scepclient.exe without any parameters to see usage information (and do not get irritated by the exception, it does no harm).
 
 ## License
 
