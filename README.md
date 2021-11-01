@@ -20,6 +20,29 @@ See the [SCEPman documentation](https://glueckkanja.gitbook.io/scepman/scepman-c
 
 The sub commands `gennew`, `gennewext`, and `submit` can be used to debug a SCEP service. Just execute scepclient.exe without any parameters to see usage information (and do not get irritated by the exception, it does no harm).
 
+#### Example: gennewext
+
+Create a file dnslist.txt with the following content:
+
+```
+servername1.example
+servername2.example
+servername3.example
+```
+
+Create a file keyUsages.txt with the following content:
+
+```
+ServerAuth
+ClientAuth
+```
+
+Execute the following command:
+
+```
+ScepClient.exe gennewext http://scepman.server/static SeCrEtPaSSwOrD dnslist.txt keyUsages.txt "Great Server" greatserver.pfx greatserver.cer
+```
+
 ## License
 
 SCEPClient is available under the [GPL](LICENSE).
