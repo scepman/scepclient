@@ -55,7 +55,7 @@ namespace ScepClient
             Console.WriteLine();
             Console.WriteLine("Enroll for a new Domain Controller certificate with additional DNS names in SAN:");
             Console.WriteLine("ScepClient.exe newdccertext <URL> <SCEPChallengePassword> <Path2DNSList> [Pkcs12DebugOutputPath]");
-            Console.WriteLine("Example: ScepClient newdccerttext http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
+            Console.WriteLine("Example: ScepClient newdccertext http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
             Console.WriteLine();
             Console.WriteLine("Submit an existing request (debug only):");
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
