@@ -1,5 +1,5 @@
 <# 
-enroll-dc-certificate.ps1 Version: 20200922
+enroll-dc-certificate.ps1 Version: 20211124
 C. Hannebauer - Glueck & Kanja Consulting AG
 
 Checks whether a usable Kerberos Authentication certificate exists on the client.
@@ -18,9 +18,6 @@ then a new certificate is requested from the configured SCEP service.
 	.EXAMPLE
     .\enroll-dc-certificate.ps1 -SCEPURL https://scepman.azurewebsites.com/dc -SCEPChallenge password123
 
-Changelog:
-20200922 - Initial Version
-
 #>
 param
 ( 
@@ -30,11 +27,19 @@ param
 )
 
 function RequestNewDCCertificate($SCEPURL, $SCEPChallenge) {
-    ./ScepClient.exe newdccert $SCEPURL $SCEPChallenge
+    $output = ./ScepClient.exe newdccert $SCEPURL $SCEPChallenge
+    $output = [string]::Join("`n", $output) # Sometimes $output is an array of the lines. Sometimes it's the whole output. This makes it deterministic.
+    Write-Debug $output
+    return $LASTEXITCODE
 }
 
 # Main
-Write-Information "Enroll DC Certificate Version 20200922"
+Write-Information "$(Get-Date) - Enroll DC Certificate Version 20211124"
+
+if (!(Test-Path -Path './ScepClient.exe')) {   # The current working directory should be where the PS script and ScepClient.exe reside
+    Write-Error "Cannot find ScepClient.exe in current working directory! Set current working directory to the correct path!"    
+    exit 3 # The system cannot find the path specified
+}
 
 ## Search for an appropriate certificate
 $sOidKerberosAuthentication = "1.3.6.1.5.2.3.5"
@@ -49,9 +54,7 @@ $cert = $ValidCandidateCerts | Sort NotAfter -Descending | Select -First 1
 if ($null -eq $cert) {
     Write-Information "No valid Kerberos Authentication certificate found. Requesting a new certificate." 
 
-    RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
-
-    Return 0
+    exit RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
 }
 else {
     $remainingValidity = $cert.NotAfter.Subtract([DateTime]::UtcNow)
@@ -61,11 +64,11 @@ else {
         
         RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
 
-        Return 0
+        exit 0
     }
     else {
         Write-Information "There is an existing, valid Kerberos Authentication certificate with sufficient remaining lifetime." 
 
-        return 0
+        exit 0
     }
 }
