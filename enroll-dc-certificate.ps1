@@ -62,9 +62,7 @@ else {
     if ($ValidityThreshold -ge $remainingValidity) {
         Write-Information "Lifetime of the existing Kerberos Authentication certificate is below the threshold; Requesting a new certificate." 
         
-        RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
-
-        exit 0
+        exit RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
     }
     else {
         Write-Information "There is an existing, valid Kerberos Authentication certificate with sufficient remaining lifetime." 
