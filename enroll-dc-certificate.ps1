@@ -1,6 +1,7 @@
 <# 
 enroll-dc-certificate.ps1 Version: 20211124
-C. Hannebauer - Glueck & Kanja Consulting AG
+C. Hannebauer - glueckkanja-gab AG
+With Feedback from P. Blattner - Aveniq Comicro AG
 
 Checks whether a usable Kerberos Authentication certificate exists on the client.
 When no valid certificate exists or its remaining validity is less than the required threshold (default 2 months),
