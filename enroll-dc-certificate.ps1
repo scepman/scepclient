@@ -1,6 +1,7 @@
 <# 
-enroll-dc-certificate.ps1 Version: 20211228
+enroll-dc-certificate.ps1 Version: 20220103
 C. Hannebauer - glueckkanja-gab AG
+T. Kunzi - glueckkanja-gab AG
 With Feedback from P. Blattner - Aveniq Comicro AG
 
 Checks whether a usable Kerberos Authentication certificate exists on the client.
@@ -17,6 +18,9 @@ If file sanlist.txt exists the FQDN's in it will be included into the SubjectAlt
 	.PARAMETER ValidityThreshold
     A new certificate is requested if the remaining validity of the existing certificate falls below this threshold
 
+	.PARAMETER ValidityThresholdDays
+    Alternative to ValidityThreshold, where the remaining validity is specified as the number of days
+
 	.EXAMPLE
     .\enroll-dc-certificate.ps1 -SCEPURL https://scepman.azurewebsites.com/dc -SCEPChallenge password123
 
@@ -25,7 +29,8 @@ param
 ( 
 [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$false,HelpMessage='URL of the SCEP service')][string]$SCEPURL,
 [Parameter(Position=1,Mandatory=$true,ValueFromPipeline=$false,HelpMessage='password used to authenticate the SCEP request')][string]$SCEPChallenge,
-[Parameter(Position=2,Mandatory=$false,ValueFromPipeline=$false,HelpMessage='a new certificate is requested if the remaining validity of the existing certificate falls below this threshold')][Int]$ValidityThreshold
+[Parameter(Position=2,Mandatory=$false,ValueFromPipeline=$false,HelpMessage='a new certificate is requested if the remaining validity of the existing certificate falls below this threshold')][timespan]$ValidityThreshold,
+[Parameter(Position=3,Mandatory=$false,ValueFromPipeline=$false,HelpMessage='alternative to ValidityThreshold, where the remaining validity is specified as the number of days')][Int]$ValidityThresholdDays
 )
 
 function RequestNewDCCertificate($SCEPURL, $SCEPChallenge) {
@@ -58,13 +63,21 @@ $ScriptName = ($MyInvocation.MyCommand.Name).Replace(".ps1","")
 $LogFile = "$ScriptFolder\$ScriptName.log"
 Set-Location $ScriptFolder # change path to scriptfolder
 
-Write-Information "$(Get-Date) - Enroll DC Certificate Version 20211227"
+Write-Information "$(Get-Date) - Enroll DC Certificate Version 20220103"
 "$(Get-Date) - Enroll DC Certificate Version 20211227"| Out-File $LogFile -Encoding unicode -Force
 
 if (!(Test-Path -Path './ScepClient.exe')) {   # The current working directory should be where the PS script and ScepClient.exe reside
     Write-Error "Cannot find ScepClient.exe in current working directory! Set current working directory to the correct path!"    
     "Cannot find ScepClient.exe in current working directory! Set current working directory to the correct path!"| Out-File $LogFile -Append -Encoding unicode
     exit 3 # The system cannot find the path specified
+}
+
+# Select the right ValidityThreshold
+if ($null -eq $ValidityThreshold) {
+    if (0 -eq $ValidityThresholdDays) {
+        $ValidityThresholdDays = 30  # Default is 30 days
+    }
+    $ValidityThreshold = New-TimeSpan -Days $ValidityThresholdDays
 }
 
 ## Search for an appropriate certificate
@@ -87,7 +100,7 @@ if ($null -eq $cert) {
 else {
     $remainingValidity = $cert.NotAfter.Subtract([DateTime]::UtcNow)
 
-    if ( (New-TimeSpan -Days $ValidityThreshold) -ge $remainingValidity) {
+    if ($ValidityThreshold -ge $remainingValidity) {
         Write-Information "Lifetime of the existing Kerberos Authentication certificate is below the threshold; Requesting a new certificate." 
         "Lifetime of the existing Kerberos Authentication certificate is below the threshold; Requesting a new certificate."| Out-File $LogFile -Append -Encoding unicode
         exit RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
