@@ -30,20 +30,20 @@ param
 [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$false,HelpMessage='URL of the SCEP service')][string]$SCEPURL,
 [Parameter(Position=1,Mandatory=$true,ValueFromPipeline=$false,HelpMessage='password used to authenticate the SCEP request')][string]$SCEPChallenge,
 [Parameter(Position=2,Mandatory=$false,ValueFromPipeline=$false,HelpMessage='a new certificate is requested if the remaining validity of the existing certificate falls below this threshold')][timespan]$ValidityThreshold,
-[Parameter(Position=3,Mandatory=$false,ValueFromPipeline=$false,HelpMessage='alternative to ValidityThreshold, where the remaining validity is specified as the number of days')][Int]$ValidityThresholdDays
+[Parameter(Position=3,Mandatory=$false,ValueFromPipeline=$false,HelpMessage='alternative to ValidityThreshold, where the remaining validity is specified as the number of days')][Int]$ValidityThresholdDays,
+[Parameter(Position=4,Mandatory=$false,ValueFromPipeline=$false,HelpMessage="automatically log to a file in the script's directory")][switch]$LogToFile
 )
 
 function RequestNewDCCertificate($SCEPURL, $SCEPChallenge) {
     if (Test-Path -Path './sanlist.txt') { # Add SANs if this file exists
-        Write-Information "using sanlist.txt for additional SANs"
-        "using sanlist.txt for additional SANs"| Out-File $LogFile -Append -Encoding unicode
+        Log-Information "using sanlist.txt for additional SANs"
         $output = ./ScepClient.exe newdccertext $SCEPURL $SCEPChallenge sanlist.txt
     }
     ELSE {
         $output = ./ScepClient.exe newdccert $SCEPURL $SCEPChallenge
     }
     $output = [string]::Join("`n", $output) # Sometimes $output is an array of the lines. Sometimes it's the whole output. This makes it deterministic.
-    Write-Debug $output
+    Log-Debug $output
     return $LASTEXITCODE
 }
 
@@ -56,6 +56,27 @@ if ((Get-Command "Write-Information" -ErrorAction SilentlyContinue) -eq $null) {
     }
 }
 
+function Log-Debug($message) {
+    Write-Debug $message
+    if ($LogToFile) {
+        $message | Out-File $LogFile -Encoding unicode -Force
+    }
+}
+
+function Log-Information($message) {
+    Write-Information $message
+    if ($LogToFile) {
+        $message | Out-File $LogFile -Encoding unicode -Force
+    }
+}
+
+function Log-Error($message) {
+    Write-Error $message
+    if ($LogToFile) {
+        $message | Out-File $LogFile -Encoding unicode -Force
+    }
+}
+
 # Variables e.g. for Logfile
 $ScriptFolder = Split-Path -parent $MyInvocation.MyCommand.Definition
 $ScriptFullName = $MyInvocation.MyCommand.Name
@@ -63,12 +84,10 @@ $ScriptName = ($MyInvocation.MyCommand.Name).Replace(".ps1","")
 $LogFile = "$ScriptFolder\$ScriptName.log"
 Set-Location $ScriptFolder # change path to scriptfolder
 
-Write-Information "$(Get-Date) - Enroll DC Certificate Version 20220103"
-"$(Get-Date) - Enroll DC Certificate Version 20211227"| Out-File $LogFile -Encoding unicode -Force
+Log-Information "$(Get-Date) - Enroll DC Certificate Version 20220103"
 
 if (!(Test-Path -Path './ScepClient.exe')) {   # The current working directory should be where the PS script and ScepClient.exe reside
-    Write-Error "Cannot find ScepClient.exe in current working directory! Set current working directory to the correct path!"    
-    "Cannot find ScepClient.exe in current working directory! Set current working directory to the correct path!"| Out-File $LogFile -Append -Encoding unicode
+    Log-Error "Cannot find ScepClient.exe in current working directory! Set current working directory to the correct path!"    
     exit 3 # The system cannot find the path specified
 }
 
@@ -83,33 +102,26 @@ if ($null -eq $ValidityThreshold) {
 ## Search for an appropriate certificate
 $sOidKerberosAuthentication = "1.3.6.1.5.2.3.5"
 $CandidateCerts = @(dir cert:\LocalMachine\My | ? { $_.HasPrivateKey -and ( ( ($_.EnhancedKeyUsageList | ? { $_.ObjectId -eq $sOidKerberosAuthentication }) -ne $null) -OR ($_.Extensions| ? {$_.EnhancedKeyUsages | ? {$_.Value -eq $sOidKerberosAuthentication} } ) ) })
-Write-Debug "There are $($CandidateCerts.Length) certificates for Kerberos Authentication"
-"There are $($CandidateCerts.Length) certificates for Kerberos Authentication"| Out-File $LogFile -Append -Encoding unicode
+Log-Debug "There are $($CandidateCerts.Length) certificates for Kerberos Authentication"
 $ValidCandidateCerts = @($CandidateCerts | ? { $_.Verify() })
-Write-Debug "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid"
-"Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid"| Out-File $LogFile -Append -Encoding unicode
+Log-Debug "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid"
 
 # If multiple suitable certificates are found, use the one that expires last
 $cert = $ValidCandidateCerts | Sort NotAfter -Descending | Select -First 1
 
 if ($null -eq $cert) {
-    Write-Information "No valid Kerberos Authentication certificate found. Requesting a new certificate."
-    "No valid Kerberos Authentication certificate found. Requesting a new certificate."| Out-File $LogFile -Append -Encoding unicode
+    Log-Information "No valid Kerberos Authentication certificate found. Requesting a new certificate."
     exit RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
 }
 else {
     $remainingValidity = $cert.NotAfter.Subtract([DateTime]::UtcNow)
 
     if ($ValidityThreshold -ge $remainingValidity) {
-        Write-Information "Lifetime of the existing Kerberos Authentication certificate is below the threshold; Requesting a new certificate." 
-        "Lifetime of the existing Kerberos Authentication certificate is below the threshold; Requesting a new certificate."| Out-File $LogFile -Append -Encoding unicode
+        Log-Information "Lifetime of the existing Kerberos Authentication certificate is below the threshold; Requesting a new certificate." 
         exit RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
     }
     else {
-        Write-Information "$($cert.Thumbprint)`n$($cert.Subject)`n$($cert.Issuer)`n$($cert.NotAfter)"
-        $cert| select Thumbprint,Subject,Issuer,NotAfter| fl| Out-File $LogFile -Append -Encoding unicode
-        Write-Information "There is an existing, valid Kerberos Authentication certificate with sufficient remaining lifetime." 
-        "There is an existing, valid Kerberos Authentication certificate with sufficient remaining lifetime."| Out-File $LogFile -Append -Encoding unicode
+        Log-Information "There is an existing, valid Kerberos Authentication certificate with sufficient remaining lifetime:`nThumbprint: $($cert.Thumbprint)`nSubject: $($cert.Subject)`nIssuer: $($cert.Issuer)`nExpiration: $($cert.NotAfter)" 
         exit 0
     }
 }
