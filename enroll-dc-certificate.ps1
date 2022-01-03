@@ -37,14 +37,25 @@ param
 function RequestNewDCCertificate($SCEPURL, $SCEPChallenge) {
     if (Test-Path -Path './sanlist.txt') { # Add SANs if this file exists
         Log-Information "using sanlist.txt for additional SANs"
-        $output = ./ScepClient.exe newdccertext $SCEPURL $SCEPChallenge sanlist.txt
+        $params = @('newdccertext', $SCEPURL, $SCEPChallenge, 'sanlist.txt')
     }
     ELSE {
-        $output = ./ScepClient.exe newdccert $SCEPURL $SCEPChallenge
+        $params = @('newdccert', $SCEPURL, $SCEPChallenge)
     }
+    $errorOutput = $( $output = & './ScepClient.exe' $params ) 2>&1 # Capture error output, see https://stackoverflow.com/a/66861283/4054714
+
+    $exitCode = $LASTEXITCODE
+
     $output = [string]::Join("`n", $output) # Sometimes $output is an array of the lines. Sometimes it's the whole output. This makes it deterministic.
     Log-Debug $output
-    return $LASTEXITCODE
+
+    if (0 -eq $exitCode -and $null -eq $errorOutput) {
+        Log-Information "Requested a new certificate, Exit Code $exitCode"
+    } else {
+        Log-Error "Error requesting a new certificate, Exit Code $exitCode, Error Output $errorOutput"
+    }
+
+    return $exitCode
 }
 
 # Main
@@ -59,21 +70,21 @@ if ((Get-Command "Write-Information" -ErrorAction SilentlyContinue) -eq $null) {
 function Log-Debug($message) {
     Write-Debug $message
     if ($LogToFile) {
-        $message | Out-File $LogFile -Encoding unicode -Force
+        "$(Get-Date) - [DEBUG] $message" | Out-File $LogFile -Encoding unicode -Force -Append
     }
 }
 
 function Log-Information($message) {
     Write-Information $message
     if ($LogToFile) {
-        $message | Out-File $LogFile -Encoding unicode -Force
+        "$(Get-Date) - [INFO] $message" | Out-File $LogFile -Encoding unicode -Force -Append
     }
 }
 
 function Log-Error($message) {
     Write-Error $message
     if ($LogToFile) {
-        $message | Out-File $LogFile -Encoding unicode -Force
+        "$(Get-Date) - [ERROR] $message" | Out-File $LogFile -Encoding unicode -Force -Append
     }
 }
 
@@ -111,14 +122,14 @@ $cert = $ValidCandidateCerts | Sort NotAfter -Descending | Select -First 1
 
 if ($null -eq $cert) {
     Log-Information "No valid Kerberos Authentication certificate found. Requesting a new certificate."
-    exit RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
+    exit RequestNewDCCertificate -SCEPURL $SCEPURL -SCEPChallenge $SCEPChallenge
 }
 else {
     $remainingValidity = $cert.NotAfter.Subtract([DateTime]::UtcNow)
 
     if ($ValidityThreshold -ge $remainingValidity) {
         Log-Information "Lifetime of the existing Kerberos Authentication certificate is below the threshold; Requesting a new certificate." 
-        exit RequestNewDCCertificate($SCEPURL, $SCEPChallenge)
+        exit RequestNewDCCertificate -SCEPURL $SCEPURL -SCEPChallenge $SCEPChallenge
     }
     else {
         Log-Information "There is an existing, valid Kerberos Authentication certificate with sufficient remaining lifetime:`nThumbprint: $($cert.Thumbprint)`nSubject: $($cert.Subject)`nIssuer: $($cert.Issuer)`nExpiration: $($cert.NotAfter)" 
