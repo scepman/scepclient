@@ -61,7 +61,7 @@ function RequestNewDCCertificate($SCEPURL, $SCEPChallenge) {
 # Main
 
 # DEBUG 2012R2 missing Write-Information cmdlet
-if ((Get-Command "Write-Information" -ErrorAction SilentlyContinue) -eq $null) {
+if ($null -eq (Get-Command "Write-Information" -ErrorAction SilentlyContinue)) {
     function Write-Information($MessageData) {
         Write-Host $MessageData
     }
@@ -132,7 +132,7 @@ else {
         exit RequestNewDCCertificate -SCEPURL $SCEPURL -SCEPChallenge $SCEPChallenge
     }
     else {
-        Log-Information "There is an existing, valid Kerberos Authentication certificate with sufficient remaining lifetime:`nThumbprint: $($cert.Thumbprint)`nSubject: $($cert.Subject)`nIssuer: $($cert.Issuer)`nExpiration: $($cert.NotAfter)" 
+        Log-Information "There is an existing, valid Kerberos Authentication certificate with sufficient remaining lifetime:`r`nThumbprint: $($cert.Thumbprint)`r`nSubject: $($cert.Subject)`r`nIssuer: $($cert.Issuer)`r`nExpiration: $($cert.NotAfter)" 
         exit 0
     }
 }
