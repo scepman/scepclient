@@ -454,7 +454,7 @@ namespace ScepClient
             // Seems that the oid is not needed for this envelope
             var signedContent = new ContentInfo(encryptedMessageData); //new Oid("1.2.840.113549.1.7.1", "data"), encryptedMessageData);
             var signedMessage = new SignedCms(signedContent);
-            signedMessage.ComputeSignature(signer);
+            ExecuteCryptoMethodWithRetries(() => signedMessage.ComputeSignature(signer));
 
             var encodedMessage = signedMessage.Encode();
             return encodedMessage;
@@ -489,7 +489,7 @@ namespace ScepClient
             byte status = baStatusRaw[2];
 
             if (status == '2')
-            { 
+            {
                 string failString = string.Empty;
                 CryptographicAttributeObject failAttribute = attributes.First(att => att.Oid.Value == Oids.Scep.FailInfo.Value);
                 if (null != failAttribute)
@@ -520,10 +520,32 @@ namespace ScepClient
 
             var envelopedCmsResponse = new EnvelopedCms();
             envelopedCmsResponse.Decode(signedResponse.ContentInfo.Content);
-            envelopedCmsResponse.Decrypt(new X509Certificate2Collection(ownKey));
+            ExecuteCryptoMethodWithRetries(() => envelopedCmsResponse.Decrypt(new X509Certificate2Collection(ownKey)));
 
             byte[] binCertificateCollectionResponse = envelopedCmsResponse.ContentInfo.Content;
             return binCertificateCollectionResponse;
+        }
+
+        private static void ExecuteCryptoMethodWithRetries(Action operation2Execute)
+        {
+            int tryCount = 0;
+            bool operationSuccess = false;
+            const int MAX_TRY_COUNT = 5;
+            while (!operationSuccess)
+            {
+                try
+                {
+                    operation2Execute.Invoke();
+                    operationSuccess = true;
+                }
+                catch (CryptographicException)
+                {
+                    if (++tryCount > MAX_TRY_COUNT)
+                        throw;
+                    else
+                        Console.WriteLine($"Decryption failed on try {tryCount}. Retrying automatically ...");
+                }
+            }
         }
     }
 }
