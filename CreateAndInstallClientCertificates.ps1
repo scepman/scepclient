@@ -128,7 +128,6 @@ Function CreateAndInstallCertificate ($SCEPURL, $SCEPChallenge, $ServerName, $Se
 
 # Variables e.g. for Logfile
 $ScriptFolder = Split-Path -parent $MyInvocation.MyCommand.Definition
-$ScriptFullName = $MyInvocation.MyCommand.Name
 $ScriptName = ($MyInvocation.MyCommand.Name).Replace(".ps1", "")
 $LogFile = "$ScriptFolder\$ScriptName.log"
 Set-Location $ScriptFolder # change path to scriptfolder
@@ -167,14 +166,14 @@ ForEach ($Server in $ServerArray) {
 
     ## We need to pass in different credentials depending on the tier. 
     ## This unusual join statement in the if block below is to account for computers that have names longer than 15 characters. 
-    If ([bool] (((Get-ADComputer -Identity (-join $ServerName[0..14]) -properties MemberOf).MemberOf -match "Tier 1") -ne $null) -eq $true) {
+    If ([bool] ($null -ne ((Get-ADComputer -Identity (-join $ServerName[0..14]) -properties MemberOf).MemberOf -match "Tier 1")) -eq $true) {
         write-output "$Server.ServerName is in Tier 1." 
         $username = $Tier1User
         $pwdTxt = Get-Content "Tier1.txt"
         $securePwd = $pwdTxt | ConvertTo-SecureString 
         $ServerCredentials = New-Object System.Management.Automation.PSCredential -ArgumentList $username, $securePwd
     }
-    elseIf ([bool] (((Get-ADComputer -Identity (-join $ServerName[0..14]) -properties MemberOf).MemberOf -match "Tier 0") -ne $null) -eq $True) {
+    elseIf ([bool] ($null -ne ((Get-ADComputer -Identity (-join $ServerName[0..14]) -properties MemberOf).MemberOf -match "Tier 0")) -eq $True) {
         write-output "$ServerFQDN is in Tier 1." 
         $username = $Tier0User
         $pwdTxt = Get-Content "Tier0.txt"
@@ -191,16 +190,16 @@ ForEach ($Server in $ServerArray) {
     ## Search for an appropriate certificate
     ## The below line made my brain explode. It wraps a nested where statement to check through the EnhancedKeyUsageList.
     ## To keep things interesting, I'm getting the cert from the remote server then doing all of the checks locally. 
-    $CandidateCerts = @(invoke-command -Session $session -ScriptBlock { get-childitem cert:localmachine\my | ? { $_.HasPrivateKey -and $_.Issuer -match "Scepman" -and ((($_.EnhancedKeyUsageList | ? { $_.FriendlyName -eq "Client Authentication" }) -ne $null)) } })
+    $CandidateCerts = @(invoke-command -Session $session -ScriptBlock { get-childitem cert:localmachine\my | Where-Object { $_.HasPrivateKey -and $_.Issuer -match "Scepman" -and ($null -ne ($_.EnhancedKeyUsageList | Where-Object { $_.FriendlyName -eq "Client Authentication" })) } })
         
     Log-Debug "There are $($CandidateCerts.Length) certificates for Client Authentication"
     Write-Output "There are $($CandidateCerts.Length) certificates for client  Authentication on $ServerFQDN"
-    $ValidCandidateCerts = @($CandidateCerts | ? { $_.Verify() })
+    $ValidCandidateCerts = @($CandidateCerts | Where-Object { $_.Verify() })
     Log-Debug "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid"
     Write-Output "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid on $ServerFQDN"
 
     # If multiple suitable certificates are found, use the one that expires last
-    $cert = $ValidCandidateCerts | Sort NotAfter -Descending | Select -First 1
+    $cert = $ValidCandidateCerts | Sort-Object NotAfter -Descending | Select-Object -First 1
 
     ## Setting variables ready for copying. 
     $HostPath = "\\$($($ServerName))\c$\windows\temp\"
