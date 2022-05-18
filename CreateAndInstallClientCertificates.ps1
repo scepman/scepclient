@@ -32,7 +32,7 @@ You must have text files with passwords as secure strings for Tier 0 and Tier 1.
 
     .EXAMPLE
     $ServerArray = @( @{ ServerName = "Server1" }, @{ ServerName = "Server2" })
-    .\enroll-ClientAuthentication-certificate.ps1 -SCEPURL https://scepman.azurewebsites.com/client -SCEPChallenge password123 -Tier0User "Tier0ServiceUser" -Tier1User "Tier1Serviceuser" -ServerArray $ServerArray
+    .\enroll-ClientAuthentication-certificate.ps1 -SCEPURL https://scepman.azurewebsites.com/client -SCEPChallenge password123 -Tier0User "Tier0ServiceUser" -Tier1User "Tier1Serviceuser" -ServerArray $ServerArray 6>&1
 
 #>
 param
@@ -44,7 +44,7 @@ param
     [Parameter(Position = 4, Mandatory = $false, ValueFromPipeline = $false, HelpMessage = "automatically log to a file in the script's directory")][switch]$LogToFile,
     [Parameter(Position = 5, Mandatory = $true, ValueFromPipeline = $false, HelpMessage = "Tier 0 service account username")][string]$Tier0User,
     [Parameter(Position = 6, Mandatory = $true, ValueFromPipeline = $false, HelpMessage = "Tier 1 service account username")][string]$Tier1User,
-    [Parameter(Position = 5, Mandatory = $true, ValueFromPipeline = $false, HelpMessage = "Array of Servers in format ServerArray.ServerName")][array]$ServerArray
+    [Parameter(Position = 7, Mandatory = $true, ValueFromPipeline = $false, HelpMessage = "Array of Servers in format ServerArray.ServerName")][array]$ServerArray
 )
 
 function RequestNewClientAuthenticationCertificate($SCEPURL, $SCEPChallenge, $ServerName, $ServerFQDN) {
@@ -194,7 +194,7 @@ ForEach ($Server in $ServerArray) {
     $CandidateCerts = @(invoke-command -Session $session -ScriptBlock { get-childitem cert:localmachine\my | Where-Object { $_.HasPrivateKey -and $_.Issuer -match "Scepman" -and ($null -ne ($_.EnhancedKeyUsageList | Where-Object { $_.FriendlyName -eq "Client Authentication" })) } })
         
     Log-Debug "There are $($CandidateCerts.Length) certificates for Client Authentication"
-    Write-Output "There are $($CandidateCerts.Length) certificates for client  Authentication on $ServerFQDN"
+    Write-Output "There are $($CandidateCerts.Length) certificates for Client Authentication on $ServerFQDN"
     $ValidCandidateCerts = @($CandidateCerts | Where-Object { $_.Verify() })
     Log-Debug "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid"
     Write-Output "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid on $ServerFQDN"
