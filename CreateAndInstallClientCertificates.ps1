@@ -49,7 +49,7 @@ param
 
 function RequestNewClientAuthenticationCertificate($SCEPURL, $SCEPChallenge, $ServerName, $ServerFQDN) {
     write-output "Requesting certificate for $ServerName" 
-    ## Preparing the text file ffor this server. 
+    ## Preparing the text file for this server. 
     $CerFileName = $ServerName + ".cer"
     $PfxFileName = $ServerFQDN + ".pfx" 
     Out-File -InputObject $ServerFQDN -FilePath dnslist.txt 
@@ -150,7 +150,7 @@ if ($null -eq $ValidityThreshold) {
 }
 
 Write-Output "Starting the main processing."
-## Itterate through the servers and do the magic of creating and installing certificates if they are needed. 
+## Iterate through the servers and do the magic of creating and installing certificates if they are needed. 
 Try {
     Import-Module ActiveDirectory -ErrorAction Stop
 }
@@ -196,8 +196,8 @@ ForEach ($Server in $ServerArray) {
     Log-Debug "There are $($CandidateCerts.Length) certificates for Client Authentication"
     Write-Output "There are $($CandidateCerts.Length) certificates for Client Authentication on $ServerFQDN"
     $ValidCandidateCerts = @($CandidateCerts | Where-Object { $_.Verify() })
-    Log-Debug "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid"
-    Write-Output "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid on $ServerFQDN"
+    Log-Debug "Of these Client Authentication certificates, $($ValidCandidateCerts.Length) are valid"
+    Write-Output "Of these Client Authentication certificates, $($ValidCandidateCerts.Length) are valid on $ServerFQDN"
 
     # If multiple suitable certificates are found, use the one that expires last
     $cert = $ValidCandidateCerts | Sort-Object NotAfter -Descending | Select-Object -First 1
