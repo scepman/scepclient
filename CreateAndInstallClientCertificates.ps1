@@ -3,25 +3,25 @@ CreateAndInstallClientCertificates.ps1 Version: 20220518
 C. Written by Darragh Ó Héiligh
 Heavily inspired from enroll-dc-certificate
 
-Checks whether a usable Client  Authentication certificate exists on the server.
+Checks whether a usable Client Authentication certificate exists on the server.
 When no valid certificate exists or its remaining validity is less than the required threshold (default 1 month),
 then a new certificate is requested from the configured SCEP service.
 If file sanlist.txt exists the FQDN's in it will be included into the SubjectAlternativeName attribute. e.g. ldap.acme.net
 You must have text files with passwords as secure strings for Tier 0 and Tier 1. 
 
-	.PARAMETER SCEPURL
+    .PARAMETER SCEPURL
     URL of the SCEP service to request a new certificate from if required.
-	
-	.PARAMETER SCEPChallenge
+
+    .PARAMETER SCEPChallenge
     The password used to authenticate the SCEP request
 
-	.PARAMETER ValidityThreshold
+    .PARAMETER ValidityThreshold
     A new certificate is requested if the remaining validity of the existing certificate falls below this threshold
 
-	.PARAMETER ValidityThresholdDays
+    .PARAMETER ValidityThresholdDays
     Alternative to ValidityThreshold, where the remaining validity is specified as the number of days
 
-    	.PARAMETER Tier0User
+    .PARAMETER Tier0User
     Following Microsoft tiering policies, the tier 0 user generally only has access to confidential servers labeled as tier 0. 
 
     .PARAMETER Tier1User
@@ -30,7 +30,8 @@ You must have text files with passwords as secure strings for Tier 0 and Tier 1.
     .PARAMETER ServerArray
     The server array contains the names of servers ($ServerArray.ServerName) that this script should loop through. 
 
-	.EXAMPLE
+    .EXAMPLE
+    $ServerArray = @( @{ ServerName = "Server1" }, @{ ServerName = "Server2" })
     .\enroll-ClientAuthentication-certificate.ps1 -SCEPURL https://scepman.azurewebsites.com/client -SCEPChallenge password123 -Tier0User "Tier0ServiceUser" -Tier1User "Tier1Serviceuser" -ServerArray $ServerArray
 
 #>
