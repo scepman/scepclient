@@ -1,36 +1,37 @@
-﻿using System;
-using System.Net;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Text.RegularExpressions;
-using System.Security.Cryptography.Pkcs;
-using System.IO;
-using System.Linq;
-using Org.BouncyCastle.Asn1;
-using System.Collections.Generic;
-using Org.BouncyCastle.X509;
-using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
+﻿using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Cms;
-using System.DirectoryServices.ActiveDirectory;
-using Org.BouncyCastle.Pkcs;
-using BCPkcs = Org.BouncyCastle.Asn1.Pkcs;
-using AsnX509 = Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Crypto.Prng;
-using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Prng;
+using Org.BouncyCastle.Pkcs;
+using Org.BouncyCastle.Security;
+using Org.BouncyCastle.X509;
+using System;
+using System.Collections.Generic;
 using System.DirectoryServices;
-using Org.BouncyCastle.Asn1.X509;
-using X509Extension = System.Security.Cryptography.X509Certificates.X509Extension;
+using System.DirectoryServices.ActiveDirectory;
+using System.IO;
+using System.Linq;
+using System.Net;
 using System.Reflection;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Security.Cryptography.Pkcs;
+using System.Security.Cryptography.X509Certificates;
+using System.Text.RegularExpressions;
+using AsnX509 = Org.BouncyCastle.Asn1.X509;
+using BCPkcs = Org.BouncyCastle.Asn1.Pkcs;
+using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
+using X509Extension = System.Security.Cryptography.X509Certificates.X509Extension;
 
 namespace ScepClient
 {
-    class ScepClient
+    internal class ScepClient
     {
-        enum Command { gennew, gennewext, submit, newdccert, newdccertext };
+        private enum Command { gennew, gennewext, submit, newdccert, newdccertext };
 
         public static void Main(string[] args)
         {
@@ -162,6 +163,7 @@ namespace ScepClient
             ImportPFX2MachineStore(useDebugOutput, pfxPassword, issuedPkcs12);
         }
 
+        [SupportedOSPlatform("windows")]
         /// <summary>
         /// Import the certificate with private key to the machine MY store while force using Software KSP.
         /// 
@@ -183,7 +185,7 @@ namespace ScepClient
             CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
 
             RSACng rsaCNG = new RSACng(key);
-            
+
             X509Certificate2 certWithCNGKey = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
             certWithCNGKey = certWithCNGKey.CopyWithPrivateKey(rsaCNG);
             using X509Store storeLmMy = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
@@ -212,6 +214,7 @@ namespace ScepClient
             return CreatePKCS10(fqdn, challengePassword, rsaKeyPair, sanDNSCollection);
         }
 
+        [SupportedOSPlatform("windows")]
         /// <summary>
         /// Adapted from MethodMan's https://stackoverflow.com/a/13814584/4054714
         /// </summary>
@@ -315,9 +318,9 @@ namespace ScepClient
             IEnumerable<FieldInfo> knownKeyPurposeFields = typeof(KeyPurposeID).GetFields(BindingFlags.Static | BindingFlags.Public)
                 .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID)); // get known Key Purposes from Bouncy Castle class
 
-                // now match key purposes either by name (partial) or by OID value (exact)
+            // now match key purposes either by name (partial) or by OID value (exact)
             FieldInfo matchingPurpose = knownKeyPurposeFields
-                .SingleOrDefault(kpField => 
+                .SingleOrDefault(kpField =>
                 kpField.Name.Contains(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ||
                 (kpField.GetValue(null)?.ToString().Equals(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ?? false));
 
