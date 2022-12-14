@@ -395,7 +395,7 @@ namespace ScepClient
         private static byte[] CreateEnvelopedDataPkcs7(byte[] pkcs10RequestData, X509Certificate2Collection caChain)
         {
             if (caChain.Count == 0)
-                throw new ArgumentException("The SCEP service did not provide any certificates for SCEP communication");
+                throw new InvalidOperationException("The SCEP service did not provide any certificates for SCEP communication");
 
             // Find a certificate 
             // - without key usage extension that forbids Key encipherment
@@ -405,7 +405,7 @@ namespace ScepClient
 
             if (!CertsWithoutKeyUsageExtensionMissingKeyEncipherment.Any())
             {
-                throw new ArgumentException("The SCEP service provided its certificate, but it is not suitable for SCEP (KeyEncipherment as Key Usage");
+                throw new InvalidOperationException("The SCEP service provided its certificate, but it is not suitable for SCEP (KeyEncipherment as Key Usage");
             }
 
             // - that is trusted (trusted root anchor and unrevoked)
@@ -414,7 +414,10 @@ namespace ScepClient
 
             if (!UsableCerts.Any())
             {
-                throw new ArgumentException("The SCEP service uses a certificate that is not trusted in this context. Add the CA certificate to the Trusted Root store in Windows.");
+                string errorMessage = "The SCEP service uses a certificate that is not trusted in this context.";
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    errorMessage += " Add the CA certificate to the Trusted Root store in Windows.";
+                throw new InvalidOperationException(errorMessage);
             }
 
             // if possible, use a CA
