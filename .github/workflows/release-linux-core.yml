@@ -30,7 +30,7 @@ jobs:
 
         # Now we do not have the ZIP anymore, so we must re-zip the extracted exe
       - name: ZIP EXE for download
-        run: zip --junk-paths scepclient-core-linux-x64 publish/scepclient-linux-x64/ScepClient.dll
+        run: zip --junk-paths scepclient-core-linux-x64 publish/scepclient-linux-x64/ScepClient
     
       - name: Create tag
         id: create_tag
