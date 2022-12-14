@@ -1,6 +1,6 @@
 # This creates a new release on GitHub
 
-name: Release Current .NET Core Version
+name: Release Current .NET Core for Windows Version
 
 # Controls when the action will run. Workflow runs when manually triggered using the UI
 # or API.
@@ -17,14 +17,14 @@ jobs:
           # Optional, GitHub token
           github_token: ${{secrets.GITHUB_TOKEN}}
           # Required, workflow file name or ID
-          workflow: build-core.yml
+          workflow: build-windows-core.yml
           # Optional, the conclusion of a completed workflow to search for
           # Can be one of:
           # "failure", "success", "neutral", "cancelled", "skipped", "timed_out", "action_required"
           # Ignores conclusion by default (thus using the most recent completed run when no other option is specified, regardless of conclusion)
           workflow_conclusion: success
           # Optional, will use the branch
-          branch: Core31
+          branch: main
           # Optional, directory where to extract artifact
           path: publish
 
@@ -35,7 +35,7 @@ jobs:
       - name: Create tag
         id: create_tag
         run: |
-          tag=$(date +"%Y%m%d-%H%M-core")
+          tag=$(date +"%Y%m%d-%H%M-windows-core")
           echo "::set-output name=tag::$tag"
 
       - name: Create Draft Release
