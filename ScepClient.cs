@@ -65,6 +65,9 @@ namespace ScepClient
             Console.WriteLine("Example: ScepClient submit http://ADCS_HOST/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
             Console.WriteLine();
 
+            if (args.Length == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "/?")
+                return;
+
             Command currentCommand = Enum.Parse<Command>(args[0]);
             string scepURL = args[1];
 
