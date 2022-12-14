@@ -22,6 +22,7 @@ using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Text.RegularExpressions;
 using AsnX509 = Org.BouncyCastle.Asn1.X509;
 using BCPkcs = Org.BouncyCastle.Asn1.Pkcs;
@@ -419,6 +420,10 @@ namespace ScepClient
                     errorMessage += " Add the CA certificate to the Trusted Root store in Windows.";
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                     errorMessage += " Add the SCEP service's CA certificates to your trusted roots. You might use update-ca-certificates to add it to /etc/ssl/cert/ca-certificates.crt, but it needs to be in PEM format, not binary DER!";
+
+                // detailed error analysis; analyse the first unusable certificate
+                errorMessage += " " + AnalyzeCertificateValidity(CertsWithoutKeyUsageExtensionMissingKeyEncipherment.First().Item1);
+
                 throw new InvalidOperationException(errorMessage);
             }
 
@@ -443,6 +448,39 @@ namespace ScepClient
             CmsProcessable deliveredCertContent = new CmsProcessableByteArray(pkcs10RequestData);
             CmsEnvelopedData envelopedDataResult = edGen.Generate(deliveredCertContent, CmsEnvelopedGenerator.Aes256Cbc);
             return envelopedDataResult.ContentInfo.GetDerEncoded();
+        }
+
+        private static string AnalyzeCertificateValidity(X509Certificate2 certificate)
+        {
+            X509Chain chain = new();
+            chain.Build(certificate);
+
+            StringBuilder analysisText = new();
+
+            analysisText.AppendLine("Chain Element Information");
+            analysisText.AppendLine($"Number of chain elements: {chain.ChainElements.Count}");
+            analysisText.AppendLine($"Chain elements synchronized? {chain.ChainElements.IsSynchronized}");
+
+            foreach (X509ChainElement element in chain.ChainElements)
+            {
+                analysisText.AppendLine($"Element issuer name: {element.Certificate.Issuer}");
+                analysisText.AppendLine($"Element certificate valid until: {element.Certificate.NotAfter}");
+                analysisText.AppendLine($"Element certificate is valid: {element.Certificate.Verify()}");
+                analysisText.AppendLine($"Element error status length: {element.ChainElementStatus.Length}");
+                analysisText.AppendLine($"Element information: {element.Information}");
+                analysisText.AppendLine($"Number of element extensions: {element.Certificate.Extensions.Count}");
+
+                if (chain.ChainStatus.Length > 1)
+                {
+                    for (int index = 0; index < element.ChainElementStatus.Length; index++)
+                    {
+                        analysisText.AppendLine(element.ChainElementStatus[index].Status.ToString());
+                        analysisText.AppendLine(element.ChainElementStatus[index].StatusInformation);
+                    }
+                }
+            }
+
+            return analysisText.ToString();
         }
 
         private static byte[] lastSenderNonce;
