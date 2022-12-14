@@ -17,6 +17,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
@@ -48,14 +49,17 @@ namespace ScepClient
             Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList> <Path2EnhancedKeyUsage> <CN> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath]");
             Console.WriteLine("Example: ScepClient gennewext http://scepman-1234.azurewebsites.com/static password sanlist.txt usagelist.txt \"Server Certificate\" newcert.pfx newcert.cer");
             Console.WriteLine();
-            Console.WriteLine("Enroll for a new Domain Controller certificate:");
-            Console.WriteLine("ScepClient.exe newdccert <URL> <SCEPChallengePassword> [Pkcs12DebugOutputPath]");
-            Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123");
-            Console.WriteLine();
-            Console.WriteLine("Enroll for a new Domain Controller certificate with additional DNS names in SAN:");
-            Console.WriteLine("ScepClient.exe newdccertext <URL> <SCEPChallengePassword> <Path2DNSList> [Pkcs12DebugOutputPath]");
-            Console.WriteLine("Example: ScepClient newdccertext http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
-            Console.WriteLine();
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Console.WriteLine("Enroll for a new Domain Controller certificate:");
+                Console.WriteLine("ScepClient.exe newdccert <URL> <SCEPChallengePassword> [Pkcs12DebugOutputPath]");
+                Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123");
+                Console.WriteLine();
+                Console.WriteLine("Enroll for a new Domain Controller certificate with additional DNS names in SAN:");
+                Console.WriteLine("ScepClient.exe newdccertext <URL> <SCEPChallengePassword> <Path2DNSList> [Pkcs12DebugOutputPath]");
+                Console.WriteLine("Example: ScepClient newdccertext http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
+                Console.WriteLine();
+            }
             Console.WriteLine("Submit an existing request (debug only):");
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
             Console.WriteLine("Example: ScepClient submit http://ADCS_HOST/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
@@ -140,6 +144,9 @@ namespace ScepClient
             bool useDebugOutput = !string.IsNullOrEmpty(outputPath);
             string pfxPassword = useDebugOutput ? "password" : PasswordForTemporaryKeys;
 
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !useDebugOutput)
+                throw new ArgumentException("On non-Windows platforms, you can only generate computer certificate requests if you store the issued certificate as PKCS#12 on disk.");
+
             AsymmetricCipherKeyPair rsaKeyPair = GenerateRSAKeyPair(2048);
 
             Pkcs10CertificationRequest request = CreatePKCS10ForComputer(challengePassword, rsaKeyPair, additionalDNSEntries);
@@ -160,7 +167,8 @@ namespace ScepClient
             if (useDebugOutput)
                 File.WriteAllBytes(outputPath, issuedPkcs12);
 
-            ImportPFX2MachineStore(useDebugOutput, pfxPassword, issuedPkcs12);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                ImportPFX2MachineStore(useDebugOutput, pfxPassword, issuedPkcs12);
         }
 
         [SupportedOSPlatform("windows")]
@@ -203,12 +211,15 @@ namespace ScepClient
             sanDNSCollection.Add(fqdn);
 
 #if !DEBUG
-            Domain computerDomain = Domain.GetComputerDomain();
-            sanDNSCollection.Add(computerDomain.Name);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Domain computerDomain = Domain.GetComputerDomain();
+                sanDNSCollection.Add(computerDomain.Name);
 
-            string NetBIOSDomain = GetNetbiosDomainName(computerDomain.Name);
-            if (!string.IsNullOrEmpty(NetBIOSDomain))
-                sanDNSCollection.Add(NetBIOSDomain);
+                string NetBIOSDomain = GetNetbiosDomainName(computerDomain.Name);
+                if (!string.IsNullOrEmpty(NetBIOSDomain))
+                    sanDNSCollection.Add(NetBIOSDomain);
+            }
 #endif // !DEBUG
 
             return CreatePKCS10(fqdn, challengePassword, rsaKeyPair, sanDNSCollection);
