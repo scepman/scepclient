@@ -417,6 +417,8 @@ namespace ScepClient
                 string errorMessage = "The SCEP service uses a certificate that is not trusted in this context.";
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                     errorMessage += " Add the CA certificate to the Trusted Root store in Windows.";
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                    errorMessage += " Add the SCEP service's CA certificates to your trusted roots. You might use update-ca-certificates to add it to /etc/ssl/cert/ca-certificates.crt, but it needs to be in PEM format, not binary DER!";
                 throw new InvalidOperationException(errorMessage);
             }
 
