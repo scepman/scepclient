@@ -17,7 +17,9 @@ jobs:
     
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v1
-       
+      with:
+        msbuild-architecture: x64
+
     - name: Build
       run: msbuild -restore ScepClient.csproj /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile
     - name: Upload build artifact
