@@ -108,7 +108,7 @@ namespace ScepClient
             Console.WriteLine();
             Console.WriteLine("Generate a new key and submit (debug only):");
             Console.WriteLine("ScepClient.exe gennew <URL> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath] [SCEPChallengePassword] [CN]");
-            Console.WriteLine("Example: ScepClient gennew http://ADCS_HOST/certsrv/mscep/mscep.dll newcert.pfx newcert.cer");
+            Console.WriteLine("Example: ScepClient gennew http://scepman-1234.azurewebsites.com/certsrv/mscep/mscep.dll newcert.pfx newcert.cer");
             Console.WriteLine();
             Console.WriteLine("Generate a new key and submit, with additional DNS names in SAN:");
             Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList>|skip <Path2EnhancedKeyUsage>|skip <CN> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath]");
@@ -127,7 +127,7 @@ namespace ScepClient
             }
             Console.WriteLine("Submit an existing request (debug only):");
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
-            Console.WriteLine("Example: ScepClient submit http://ADCS_HOST/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
+            Console.WriteLine("Example: ScepClient submit http://scepman-1234.azurewebsites.com/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
             Console.WriteLine();
         }
 
