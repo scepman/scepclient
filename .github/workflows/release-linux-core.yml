@@ -1,6 +1,6 @@
 # This creates a new release on GitHub
 
-name: Release Current .NET Framework Version
+name: Release Current .NET Core for Linux Version
 
 # Controls when the action will run. Workflow runs when manually triggered using the UI
 # or API.
@@ -17,25 +17,25 @@ jobs:
           # Optional, GitHub token
           github_token: ${{secrets.GITHUB_TOKEN}}
           # Required, workflow file name or ID
-          workflow: build-framework.yml
+          workflow: build-linux-core.yml
           # Optional, the conclusion of a completed workflow to search for
           # Can be one of:
           # "failure", "success", "neutral", "cancelled", "skipped", "timed_out", "action_required"
           # Ignores conclusion by default (thus using the most recent completed run when no other option is specified, regardless of conclusion)
           workflow_conclusion: success
           # Optional, will use the branch
-          branch: Framework462
+          branch: main
           # Optional, directory where to extract artifact
           path: publish
 
         # Now we do not have the ZIP anymore, so we must re-zip the extracted exe
       - name: ZIP EXE for download
-        run: zip --junk-paths scepclient-framework-win-x64 publish/scepclient-win-x64/*.exe publish/scepclient-win-x64/*.exe.config publish/scepclient-win-x64/*.dll
+        run: zip --junk-paths scepclient-core-linux-x64 publish/scepclient-linux-x64/ScepClient
     
       - name: Create tag
         id: create_tag
         run: |
-          tag=$(date +"%Y%m%d-%H%M-framework")
+          tag=$(date +"%Y%m%d-%H%M-linux-core")
           echo "::set-output name=tag::$tag"
 
       - name: Create Draft Release
@@ -61,8 +61,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./scepclient-framework-win-x64.zip
-          asset_name: scepclient-framework-win-x64.zip
+          asset_path: ./scepclient-core-linux-x64.zip
+          asset_name: scepclient-core-linux-x64.zip
           asset_content_type: application/zip
 
       - name: Publish Release

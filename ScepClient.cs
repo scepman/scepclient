@@ -1,114 +1,144 @@
-﻿using System;
-using System.Net;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Text.RegularExpressions;
-using System.Security.Cryptography.Pkcs;
-using System.IO;
-using System.Linq;
+﻿using DotNetCode;
 using Org.BouncyCastle.Asn1;
-using System.Collections.Generic;
-using Org.BouncyCastle.X509;
-using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
+using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Cms;
-using System.DirectoryServices.ActiveDirectory;
-using Org.BouncyCastle.Pkcs;
-using BCPkcs = Org.BouncyCastle.Asn1.Pkcs;
-using AsnX509 = Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Crypto.Prng;
-using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Prng;
+using Org.BouncyCastle.Pkcs;
+using Org.BouncyCastle.Security;
+using Org.BouncyCastle.X509;
+using System;
+using System.Collections.Generic;
 using System.DirectoryServices;
-using Org.BouncyCastle.Asn1.X509;
-using X509Extension = System.Security.Cryptography.X509Certificates.X509Extension;
+using System.DirectoryServices.ActiveDirectory;
+using System.IO;
+using System.Linq;
+using System.Net;
 using System.Reflection;
-
-using DotNetCode;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Security.Cryptography.Pkcs;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Text.RegularExpressions;
+using AsnX509 = Org.BouncyCastle.Asn1.X509;
+using BCPkcs = Org.BouncyCastle.Asn1.Pkcs;
+using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
+using X509Extension = System.Security.Cryptography.X509Certificates.X509Extension;
 
 namespace ScepClient
 {
-    class ScepClient
+    internal class ScepClient
     {
-        enum Command { gennew, gennewext, submit, newdccert, newdccertext };
+        private enum Command { gennew, gennewext, submit, newdccert, newdccertext };
 
         public static void Main(string[] args)
         {
+            if (args.Length == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "/?")
+            {
+                PrintUsage();
+                return;
+            }
+
+            try
+            {
+                Command currentCommand;
+                Enum.TryParse<Command>(args[0], out currentCommand);
+                string scepURL = args[1];
+
+                string[] additionalDNSEntries = null;
+                if (currentCommand == Command.newdccertext || currentCommand == Command.gennewext)
+                    additionalDNSEntries = ReadListFromFile(args[3]);
+
+                switch (currentCommand)
+                {
+                    case Command.newdccert:
+                        GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
+                        break;
+                    case Command.newdccertext:
+                        GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
+                        break;
+                    case Command.gennew:
+                        GenerateNew(
+                            scepURL,    // SCEP URL
+                            args[2],    // PFX path
+                            args[3],    // CER path
+                            args.Length > 4 ? args[4] : null,       // PKCS#10OutputPath
+                            args.Length > 5 ? args[5] : "password", // Challenge Password
+                            args.Length > 6 ? args[6] : null,        // CN of certificate
+                            new string[0],
+                            null
+                        );
+                        break;
+                    case Command.gennewext:
+                        string[] additionalKeyPurposes = ReadListFromFile(args[4]);
+                        GenerateNew(
+                            scepURL,    // SCEP URL
+                            args[6],    // PFX path
+                            args[7],    // CER path
+                            args.Length > 8 ? args[8] : null,       // PKCS#10OutputPath
+                            args[2], // Challenge Password
+                            args[5],  // CN of certificate
+                            additionalDNSEntries,
+                            additionalKeyPurposes
+                        );
+                        break;
+                    case Command.submit:
+                        SubmitExistingPkcs10(scepURL, args[2], args[3], args[4]);
+                        break;
+                    default:
+                        throw new NotImplementedException($"Command {currentCommand} is not implemented!");
+                }
+            }
+            catch
+            {
+                PrintUsage();
+                throw;
+            }
+        }
+
+        private static void PrintUsage()
+        {
             Console.WriteLine("SCEPClient");
-            Console.WriteLine("2022 by glueckkanja-gab, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
+            Console.WriteLine("2023 by glueckkanja-gab, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
             Console.WriteLine();
             Console.WriteLine("Usage: ScepClient.exe <command> <URL> <further parameters...>");
             Console.WriteLine();
             Console.WriteLine("Generate a new key and submit (debug only):");
             Console.WriteLine("ScepClient.exe gennew <URL> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath] [SCEPChallengePassword] [CN]");
-            Console.WriteLine("Example: ScepClient gennew http://ADCS_HOST/certsrv/mscep/mscep.dll newcert.pfx newcert.cer");
+            Console.WriteLine("Example: ScepClient gennew http://scepman-1234.azurewebsites.com/certsrv/mscep/mscep.dll newcert.pfx newcert.cer");
             Console.WriteLine();
             Console.WriteLine("Generate a new key and submit, with additional DNS names in SAN:");
-            Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList> <Path2EnhancedKeyUsage> <CN> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath]");
+            Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList>|skip <Path2EnhancedKeyUsage>|skip <CN> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath]");
             Console.WriteLine("Example: ScepClient gennewext http://scepman-1234.azurewebsites.com/static password sanlist.txt usagelist.txt \"Server Certificate\" newcert.pfx newcert.cer");
             Console.WriteLine();
-            Console.WriteLine("Enroll for a new Domain Controller certificate:");
-            Console.WriteLine("ScepClient.exe newdccert <URL> <SCEPChallengePassword> [Pkcs12DebugOutputPath]");
-            Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123");
-            Console.WriteLine();
-            Console.WriteLine("Enroll for a new Domain Controller certificate with additional DNS names in SAN:");
-            Console.WriteLine("ScepClient.exe newdccertext <URL> <SCEPChallengePassword> <Path2DNSList> [Pkcs12DebugOutputPath]");
-            Console.WriteLine("Example: ScepClient newdccertext http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
-            Console.WriteLine();
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Console.WriteLine("Enroll for a new Domain Controller certificate:");
+                Console.WriteLine("ScepClient.exe newdccert <URL> <SCEPChallengePassword> [Pkcs12DebugOutputPath]");
+                Console.WriteLine("Example: ScepClient newdccert http://scepman-1234.azurewebsites.com/dc password123");
+                Console.WriteLine();
+                Console.WriteLine("Enroll for a new Domain Controller certificate with additional DNS names in SAN:");
+                Console.WriteLine("ScepClient.exe newdccertext <URL> <SCEPChallengePassword> <Path2DNSList> [Pkcs12DebugOutputPath]");
+                Console.WriteLine("Example: ScepClient newdccertext http://scepman-1234.azurewebsites.com/dc password123 sanlist.txt");
+                Console.WriteLine();
+            }
             Console.WriteLine("Submit an existing request (debug only):");
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
-            Console.WriteLine("Example: ScepClient submit http://ADCS_HOST/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
+            Console.WriteLine("Example: ScepClient submit http://scepman-1234.azurewebsites.com/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
             Console.WriteLine();
+        }
 
-            Command currentCommand;
-            Enum.TryParse<Command>(args[0], out currentCommand);
-            string scepURL = args[1];
-
-            string[] additionalDNSEntries = null;
-            if (currentCommand == Command.newdccertext || currentCommand == Command.gennewext)
-                additionalDNSEntries = File.ReadAllText(args[3]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-
-            switch (currentCommand)
-            {
-                case Command.newdccert:
-                    GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
-                    break;
-                case Command.newdccertext:
-                    GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
-                    break;
-                case Command.gennew:
-                    GenerateNew(
-                        scepURL,    // SCEP URL
-                        args[2],    // PFX path
-                        args[3],    // CER path
-                        args.Length > 4 ? args[4] : null,       // PKCS#10OutputPath
-                        args.Length > 5 ? args[5] : "password", // Challenge Password
-                        args.Length > 6 ? args[6] : null,        // CN of certificate
-                        new string[0],
-                        null
-                    );
-                    break;
-                case Command.gennewext:
-                    string[] additionalKeyPurposes = File.ReadAllText(args[4]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    GenerateNew(
-                        scepURL,    // SCEP URL
-                        args[6],    // PFX path
-                        args[7],    // CER path
-                        args.Length > 8 ? args[8] : null,       // PKCS#10OutputPath
-                        args[2], // Challenge Password
-                        args[5],  // CN of certificate
-                        additionalDNSEntries,
-                        additionalKeyPurposes
-                    );
-                    break;
-                case Command.submit:
-                    SubmitExistingPkcs10(scepURL, args[2], args[3], args[4]);
-                    break;
-                default:
-                    throw new NotImplementedException($"Command {currentCommand} is not implemented!");
-            }
+        private static string[] ReadListFromFile(string fileName)
+        {
+            if ("skip".Equals(fileName, StringComparison.OrdinalIgnoreCase))
+                return null;
+            else
+                return File.ReadAllText(fileName).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         }
 
         private static string _passwordForTemporaryKeys;
@@ -142,6 +172,9 @@ namespace ScepClient
             bool useDebugOutput = !string.IsNullOrEmpty(outputPath);
             string pfxPassword = useDebugOutput ? "password" : PasswordForTemporaryKeys;
 
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !useDebugOutput)
+                throw new ArgumentException("On non-Windows platforms, you can only generate computer certificate requests if you store the issued certificate as PKCS#12 on disk.");
+
             AsymmetricCipherKeyPair rsaKeyPair = GenerateRSAKeyPair(2048);
 
             Pkcs10CertificationRequest request = CreatePKCS10ForComputer(challengePassword, rsaKeyPair, additionalDNSEntries);
@@ -162,7 +195,8 @@ namespace ScepClient
             if (useDebugOutput)
                 File.WriteAllBytes(outputPath, issuedPkcs12);
 
-            ImportPFX2MachineStore(useDebugOutput, pfxPassword, issuedPkcs12);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                ImportPFX2MachineStore(useDebugOutput, pfxPassword, issuedPkcs12);
         }
 
         /// <summary>
@@ -203,12 +237,15 @@ namespace ScepClient
             sanDNSCollection.Add(fqdn);
 
 #if !DEBUG
-            Domain computerDomain = Domain.GetComputerDomain();
-            sanDNSCollection.Add(computerDomain.Name);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Domain computerDomain = Domain.GetComputerDomain();
+                sanDNSCollection.Add(computerDomain.Name);
 
-            string NetBIOSDomain = GetNetbiosDomainName(computerDomain.Name);
-            if (!string.IsNullOrEmpty(NetBIOSDomain))
-                sanDNSCollection.Add(NetBIOSDomain);
+                string NetBIOSDomain = GetNetbiosDomainName(computerDomain.Name);
+                if (!string.IsNullOrEmpty(NetBIOSDomain))
+                    sanDNSCollection.Add(NetBIOSDomain);
+            }
 #endif // !DEBUG
 
             return CreatePKCS10(fqdn, challengePassword, rsaKeyPair, sanDNSCollection);
@@ -281,7 +318,7 @@ namespace ScepClient
 
         private static Pkcs10CertificationRequest CreatePKCS10(string sCN, string challengePassword, AsymmetricCipherKeyPair rsaKeyPair, IEnumerable<string> additionalDNSEntries, IEnumerable<string> keyPurposes = null)
         {
-             BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
+            BCPkcs.AttributePkcs attrPassword = new BCPkcs.AttributePkcs(BCPkcs.PkcsObjectIdentifiers.Pkcs9AtChallengePassword, new DerSet(new DerPrintableString(challengePassword)));
 
             AsnX509.X509ExtensionsGenerator extensions = new AsnX509.X509ExtensionsGenerator();
             GeneralNames subjectAlternateNames = new GeneralNames(
@@ -314,12 +351,15 @@ namespace ScepClient
         /// </summary>
         private static KeyPurposeID ParseKeyPurpose(string keyPurpose)
         {
+            keyPurpose = keyPurpose.Replace(" ", string.Empty); // Remove spaces, as they don't appear in the BC KeyPurposeID names
+            keyPurpose = keyPurpose.Replace("Authentication", "Auth"); // The abbreviation in BC
+
             IEnumerable<FieldInfo> knownKeyPurposeFields = typeof(KeyPurposeID).GetFields(BindingFlags.Static | BindingFlags.Public)
                 .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID)); // get known Key Purposes from Bouncy Castle class
 
-                // now match key purposes either by name (partial) or by OID value (exact)
+            // now match key purposes either by name (partial) or by OID value (exact)
             FieldInfo matchingPurpose = knownKeyPurposeFields
-                .SingleOrDefault(kpField => 
+                .SingleOrDefault(kpField =>
                 kpField.Name.ToUpperInvariant().Contains(keyPurpose.ToUpperInvariant()) ||
                 (kpField.GetValue(null)?.ToString().Equals(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ?? false));
 
@@ -380,7 +420,7 @@ namespace ScepClient
         private static byte[] CreateEnvelopedDataPkcs7(byte[] pkcs10RequestData, X509Certificate2Collection caChain)
         {
             if (caChain.Count == 0)
-                throw new ArgumentException("The SCEP service did not provide any certificates for SCEP communication");
+                throw new InvalidOperationException("The SCEP service did not provide any certificates for SCEP communication");
 
             // Find a certificate 
             // - without key usage extension that forbids Key encipherment
@@ -390,7 +430,7 @@ namespace ScepClient
 
             if (!CertsWithoutKeyUsageExtensionMissingKeyEncipherment.Any())
             {
-                throw new ArgumentException("The SCEP service provided its certificate, but it is not suitable for SCEP (KeyEncipherment as Key Usage");
+                throw new InvalidOperationException("The SCEP service provided its certificate, but it is not suitable for SCEP (KeyEncipherment as Key Usage");
             }
 
             // - that is trusted (trusted root anchor and unrevoked)
@@ -399,7 +439,16 @@ namespace ScepClient
 
             if (!UsableCerts.Any())
             {
-                throw new ArgumentException("The SCEP service uses a certificate that is not trusted in this context. Add the CA certificate to the Trusted Root store in Windows.");
+                string errorMessage = "The SCEP service uses a certificate that is not trusted in this context.";
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    errorMessage += " Add the CA certificate to the Trusted Root store in Windows.";
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                    errorMessage += " Add the SCEP service's CA certificates to your trusted roots. You might use update-ca-certificates to add it to /etc/ssl/cert/ca-certificates.crt, but it needs to be in PEM format, not binary DER!";
+
+                // detailed error analysis; analyse the first unusable certificate
+                errorMessage += " " + AnalyzeCertificateValidity(CertsWithoutKeyUsageExtensionMissingKeyEncipherment.First().Item1);
+
+                throw new InvalidOperationException(errorMessage);
             }
 
             // if possible, use a CA
@@ -423,6 +472,39 @@ namespace ScepClient
             CmsProcessable deliveredCertContent = new CmsProcessableByteArray(pkcs10RequestData);
             CmsEnvelopedData envelopedDataResult = edGen.Generate(deliveredCertContent, CmsEnvelopedGenerator.Aes256Cbc);
             return envelopedDataResult.ContentInfo.GetDerEncoded();
+        }
+
+        private static string AnalyzeCertificateValidity(X509Certificate2 certificate)
+        {
+            X509Chain chain = new X509Chain();
+            chain.Build(certificate);
+
+            StringBuilder analysisText = new StringBuilder();
+
+            analysisText.AppendLine("Chain Element Information");
+            analysisText.AppendLine($"Number of chain elements: {chain.ChainElements.Count}");
+            analysisText.AppendLine($"Chain elements synchronized? {chain.ChainElements.IsSynchronized}");
+
+            foreach (X509ChainElement element in chain.ChainElements)
+            {
+                analysisText.AppendLine($"Element issuer name: {element.Certificate.Issuer}");
+                analysisText.AppendLine($"Element certificate valid until: {element.Certificate.NotAfter}");
+                analysisText.AppendLine($"Element certificate is valid: {element.Certificate.Verify()}");
+                analysisText.AppendLine($"Element error status length: {element.ChainElementStatus.Length}");
+                analysisText.AppendLine($"Element information: {element.Information}");
+                analysisText.AppendLine($"Number of element extensions: {element.Certificate.Extensions.Count}");
+
+                if (chain.ChainStatus.Length > 1)
+                {
+                    for (int index = 0; index < element.ChainElementStatus.Length; index++)
+                    {
+                        analysisText.AppendLine(element.ChainElementStatus[index].Status.ToString());
+                        analysisText.AppendLine(element.ChainElementStatus[index].StatusInformation);
+                    }
+                }
+            }
+
+            return analysisText.ToString();
         }
 
         private static byte[] lastSenderNonce;

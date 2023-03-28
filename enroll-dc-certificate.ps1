@@ -90,7 +90,6 @@ function Log-Error($message) {
 
 # Variables e.g. for Logfile
 $ScriptFolder = Split-Path -parent $MyInvocation.MyCommand.Definition
-$ScriptFullName = $MyInvocation.MyCommand.Name
 $ScriptName = ($MyInvocation.MyCommand.Name).Replace(".ps1","")
 $LogFile = "$ScriptFolder\$ScriptName.log"
 Set-Location $ScriptFolder # change path to scriptfolder
@@ -112,13 +111,13 @@ if ($null -eq $ValidityThreshold) {
 
 ## Search for an appropriate certificate
 $sOidKerberosAuthentication = "1.3.6.1.5.2.3.5"
-$CandidateCerts = @(dir cert:\LocalMachine\My | ? { $_.HasPrivateKey -and ( ( ($_.EnhancedKeyUsageList | ? { $_.ObjectId -eq $sOidKerberosAuthentication }) -ne $null) -OR ($_.Extensions| ? {$_.EnhancedKeyUsages | ? {$_.Value -eq $sOidKerberosAuthentication} } ) ) })
+$CandidateCerts = @(Get-ChildItem cert:\LocalMachine\My | Where-Object { $_.HasPrivateKey -and ( ( ($_.EnhancedKeyUsageList | Where-Object { $_.ObjectId -eq $sOidKerberosAuthentication }) -ne $null) -OR ($_.Extensions| Where-Object {$_.EnhancedKeyUsages | Where-Object {$_.Value -eq $sOidKerberosAuthentication} } ) ) })
 Log-Debug "There are $($CandidateCerts.Length) certificates for Kerberos Authentication"
-$ValidCandidateCerts = @($CandidateCerts | ? { $_.Verify() })
+$ValidCandidateCerts = @($CandidateCerts | Where-Object { $_.Verify() })
 Log-Debug "Of these Kerberos Authentication certificates, $($ValidCandidateCerts.Length) are valid"
 
 # If multiple suitable certificates are found, use the one that expires last
-$cert = $ValidCandidateCerts | Sort NotAfter -Descending | Select -First 1
+$cert = $ValidCandidateCerts | Sort-Object NotAfter -Descending | Select-Object -First 1
 
 if ($null -eq $cert) {
     Log-Information "No valid Kerberos Authentication certificate found. Requesting a new certificate."
