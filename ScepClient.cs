@@ -330,6 +330,9 @@ namespace ScepClient
         /// </summary>
         private static KeyPurposeID ParseKeyPurpose(string keyPurpose)
         {
+            keyPurpose = keyPurpose.Replace(" ", string.Empty); // Remove spaces, as they don't appear in the BC KeyPurposeID names
+            keyPurpose = keyPurpose.Replace("Authentication", "Auth"); // The abbreviation in BC
+
             IEnumerable<FieldInfo> knownKeyPurposeFields = typeof(KeyPurposeID).GetFields(BindingFlags.Static | BindingFlags.Public)
                 .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID)); // get known Key Purposes from Bouncy Castle class
 
