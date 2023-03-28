@@ -37,6 +37,70 @@ namespace ScepClient
 
         public static void Main(string[] args)
         {
+            if (args.Length == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "/?")
+            {
+                PrintUsage();
+                return;
+            }
+
+            try
+            {
+                Command currentCommand = Enum.Parse<Command>(args[0]);
+                string scepURL = args[1];
+
+                string[] additionalDNSEntries = null;
+                if (currentCommand == Command.newdccertext || currentCommand == Command.gennewext)
+                    additionalDNSEntries = ReadListFromFile(args[3]);
+
+                switch (currentCommand)
+                {
+                    case Command.newdccert:
+                        GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
+                        break;
+                    case Command.newdccertext:
+                        GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
+                        break;
+                    case Command.gennew:
+                        GenerateNew(
+                            scepURL,    // SCEP URL
+                            args[2],    // PFX path
+                            args[3],    // CER path
+                            args.Length > 4 ? args[4] : null,       // PKCS#10OutputPath
+                            args.Length > 5 ? args[5] : "password", // Challenge Password
+                            args.Length > 6 ? args[6] : null,        // CN of certificate
+                            new string[0],
+                            null
+                        );
+                        break;
+                    case Command.gennewext:
+                        string[] additionalKeyPurposes = ReadListFromFile(args[4]);
+                        GenerateNew(
+                            scepURL,    // SCEP URL
+                            args[6],    // PFX path
+                            args[7],    // CER path
+                            args.Length > 8 ? args[8] : null,       // PKCS#10OutputPath
+                            args[2], // Challenge Password
+                            args[5],  // CN of certificate
+                            additionalDNSEntries,
+                            additionalKeyPurposes
+                        );
+                        break;
+                    case Command.submit:
+                        SubmitExistingPkcs10(scepURL, args[2], args[3], args[4]);
+                        break;
+                    default:
+                        throw new NotImplementedException($"Command {currentCommand} is not implemented!");
+                }
+            }
+            catch
+            {
+                PrintUsage();
+                throw;
+            }
+        }
+
+        private static void PrintUsage()
+        {
             Console.WriteLine("SCEPClient");
             Console.WriteLine("2023 by glueckkanja-gab, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
             Console.WriteLine();
@@ -65,56 +129,6 @@ namespace ScepClient
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
             Console.WriteLine("Example: ScepClient submit http://ADCS_HOST/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
             Console.WriteLine();
-
-            if (args.Length == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "/?")
-                return;
-
-            Command currentCommand = Enum.Parse<Command>(args[0]);
-            string scepURL = args[1];
-
-            string[] additionalDNSEntries = null;
-            if (currentCommand == Command.newdccertext || currentCommand == Command.gennewext)
-                additionalDNSEntries = ReadListFromFile(args[3]);
-
-            switch (currentCommand)
-            {
-                case Command.newdccert:
-                    GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
-                    break;
-                case Command.newdccertext:
-                    GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
-                    break;
-                case Command.gennew:
-                    GenerateNew(
-                        scepURL,    // SCEP URL
-                        args[2],    // PFX path
-                        args[3],    // CER path
-                        args.Length > 4 ? args[4] : null,       // PKCS#10OutputPath
-                        args.Length > 5 ? args[5] : "password", // Challenge Password
-                        args.Length > 6 ? args[6] : null,        // CN of certificate
-                        new string[0],
-                        null
-                    );
-                    break;
-                case Command.gennewext:
-                    string[] additionalKeyPurposes = ReadListFromFile(args[4]);
-                    GenerateNew(
-                        scepURL,    // SCEP URL
-                        args[6],    // PFX path
-                        args[7],    // CER path
-                        args.Length > 8 ? args[8] : null,       // PKCS#10OutputPath
-                        args[2], // Challenge Password
-                        args[5],  // CN of certificate
-                        additionalDNSEntries,
-                        additionalKeyPurposes
-                    );
-                    break;
-                case Command.submit:
-                    SubmitExistingPkcs10(scepURL, args[2], args[3], args[4]);
-                    break;
-                default:
-                    throw new NotImplementedException($"Command {currentCommand} is not implemented!");
-            }
         }
 
         private static string[] ReadListFromFile(string fileName)
