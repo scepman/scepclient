@@ -47,7 +47,7 @@ namespace ScepClient
             Console.WriteLine("Example: ScepClient gennew http://ADCS_HOST/certsrv/mscep/mscep.dll newcert.pfx newcert.cer");
             Console.WriteLine();
             Console.WriteLine("Generate a new key and submit, with additional DNS names in SAN:");
-            Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList> <Path2EnhancedKeyUsage> <CN> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath]");
+            Console.WriteLine("ScepClient.exe gennewext <URL> <SCEPChallengePassword> <Path2DNSList>|skip <Path2EnhancedKeyUsage>|skip <CN> <PFXOutputPath> <CertOutputPath> [PKCS10OutputPath]");
             Console.WriteLine("Example: ScepClient gennewext http://scepman-1234.azurewebsites.com/static password sanlist.txt usagelist.txt \"Server Certificate\" newcert.pfx newcert.cer");
             Console.WriteLine();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -74,7 +74,7 @@ namespace ScepClient
 
             string[] additionalDNSEntries = null;
             if (currentCommand == Command.newdccertext || currentCommand == Command.gennewext)
-                additionalDNSEntries = File.ReadAllText(args[3]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                additionalDNSEntries = ReadListFromFile(args[3]);
 
             switch (currentCommand)
             {
@@ -97,7 +97,7 @@ namespace ScepClient
                     );
                     break;
                 case Command.gennewext:
-                    string[] additionalKeyPurposes = File.ReadAllText(args[4]).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] additionalKeyPurposes = ReadListFromFile(args[4]);
                     GenerateNew(
                         scepURL,    // SCEP URL
                         args[6],    // PFX path
@@ -115,6 +115,14 @@ namespace ScepClient
                 default:
                     throw new NotImplementedException($"Command {currentCommand} is not implemented!");
             }
+        }
+
+        private static string[] ReadListFromFile(string fileName)
+        {
+            if ("skip".Equals(fileName, StringComparison.OrdinalIgnoreCase))
+                return null;
+            else
+                return File.ReadAllText(fileName).Split(new char[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         }
 
         private static string _passwordForTemporaryKeys;
