@@ -33,7 +33,7 @@ namespace ScepClient
 {
     internal class ScepClient
     {
-        private enum Command { gennew, gennewext, submit, newdccert, newdccertext };
+        private enum Command { gennew, gennewext, renew, submit, newdccert, newdccertext };
 
         public static void Main(string[] args)
         {
@@ -85,6 +85,9 @@ namespace ScepClient
                             additionalKeyPurposes
                         );
                         break;
+                    case Command.renew:
+                        RenewCertificate(scepURL, args[2], args[3], args.Length > 4 ? args[4] : null);
+                        break;
                     case Command.submit:
                         SubmitExistingPkcs10(scepURL, args[2], args[3], args[4]);
                         break;
@@ -129,6 +132,10 @@ namespace ScepClient
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
             Console.WriteLine("Example: ScepClient submit http://scepman-1234.azurewebsites.com/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
             Console.WriteLine();
+            Console.WriteLine("Renew a certifiate via SCEP (debug only):");
+            Console.WriteLine("ScepClient.exe renew <URL> <PFXInputPath> <CertOutputPath> [PKCS10OutputPath]");
+            Console.WriteLine("Example: ScepClient renew http://scepman-1234.azurewebsites.com/certsrv/mscep/mscep.dll cert.pfx newcert.cer");
+            Console.WriteLine();
         }
 
         private static string[] ReadListFromFile(string fileName)
@@ -163,6 +170,14 @@ namespace ScepClient
 
             byte[] binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
             File.WriteAllBytes(certOutputPath, binIssuedCert);
+        }
+
+        private static void RenewCertificate(string scepURL, string requestPfxPath, string certOutputPath, string pkcs10OutputPath)
+        {
+            X509Certificate2 selfSignedCert = new X509Certificate2(requestPfxPath, "password");
+
+            throw new NotImplementedException("Not yet implemented");
+
         }
 
         private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
@@ -356,7 +371,7 @@ namespace ScepClient
             keyPurpose = keyPurpose.Replace("Authentication", "Auth"); // The abbreviation in BC
 
             IEnumerable<FieldInfo> knownKeyPurposeFields = typeof(KeyPurposeID).GetFields(BindingFlags.Static | BindingFlags.Public)
-                .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID)); // get known Key Purposes from Bouncy Castle class
+                .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID) && !fieldCandidate.IsDefined(typeof(ObsoleteAttribute), false)); // get known Key Purposes from Bouncy Castle class
 
             // now match key purposes either by name (partial) or by OID value (exact)
             FieldInfo matchingPurpose = knownKeyPurposeFields
