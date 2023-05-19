@@ -132,7 +132,7 @@ namespace ScepClient
             Console.WriteLine("ScepClient.exe submit <URL> <RequestKeyPFX> <RequestPath> <CertOutputPath>");
             Console.WriteLine("Example: ScepClient submit http://scepman-1234.azurewebsites.com/certsrv/mscep/mscep.dll requestkey.pfx request.req newcert.cer");
             Console.WriteLine();
-            Console.WriteLine("Renew a certifiate via SCEP (debug only):");
+            Console.WriteLine("Renew a certifiate via SCEP using the same key (debug only):");
             Console.WriteLine("ScepClient.exe renew <URL> <PFXInputPath> <CertOutputPath> [PKCS10OutputPath]");
             Console.WriteLine("Example: ScepClient renew http://scepman-1234.azurewebsites.com/certsrv/mscep/mscep.dll cert.pfx newcert.cer");
             Console.WriteLine();
@@ -174,10 +174,17 @@ namespace ScepClient
 
         private static void RenewCertificate(string scepURL, string requestPfxPath, string certOutputPath, string pkcs10OutputPath)
         {
-            X509Certificate2 selfSignedCert = new X509Certificate2(requestPfxPath, "password");
+            X509Certificate2 originalCertificate = new X509Certificate2(requestPfxPath, "password");
+            CertificateRequest csr = new CertificateRequest(originalCertificate.SubjectName, originalCertificate.PublicKey, HashAlgorithmName.SHA256);
+            foreach (X509Extension ext in originalCertificate.Extensions)
+                csr.CertificateExtensions.Add(ext);
+            byte[] pkcs10 = csr.CreateSigningRequest();
 
-            throw new NotImplementedException("Not yet implemented");
+            if (null != pkcs10OutputPath)
+                File.WriteAllBytes(pkcs10OutputPath, pkcs10);
 
+            byte[] binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, originalCertificate, true);
+            File.WriteAllBytes(certOutputPath, binIssuedCert);
         }
 
         private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
@@ -408,7 +415,7 @@ namespace ScepClient
             File.WriteAllBytes(pfxOutputPath, issuedPkcs12);
         }
 
-        private static byte[] SubmitPkcs10ToScep(string scepURL, byte[] pkcs10, X509Certificate2 signerCert)
+        private static byte[] SubmitPkcs10ToScep(string scepURL, byte[] pkcs10, X509Certificate2 signerCert, bool isRenewal = false)
         {
             var webClient = new WebClient();
 
@@ -416,7 +423,7 @@ namespace ScepClient
 
             var encryptedMessageData = CreateEnvelopedDataPkcs7(pkcs10, caChain);
 
-            var encodedMessage = CreateSignedDataPkcs7(encryptedMessageData, signerCert);
+            var encodedMessage = CreateSignedDataPkcs7(encryptedMessageData, signerCert, isRenewal ? 17 : 19); // 17 = Renewal Request, 19 = PKCSReq
 
             byte[] data = webClient.UploadData(scepURL, encodedMessage);
             //byte[] data = SubmitRequestToScepWithGET(scepURL, webClient, encodedMessage);
@@ -526,7 +533,7 @@ namespace ScepClient
 
         private static byte[] lastSenderNonce;
 
-        private static byte[] CreateSignedDataPkcs7(byte[] encryptedMessageData, X509Certificate2 localPrivateKey)
+        private static byte[] CreateSignedDataPkcs7(byte[] encryptedMessageData, X509Certificate2 localPrivateKey, int iMessageType)
         {
             // Create the outer envelope, signed with the local private key
             var signer = new CmsSigner(localPrivateKey)
@@ -536,7 +543,7 @@ namespace ScepClient
 
             // Message Type (messageType): https://tools.ietf.org/html/draft-nourse-scep-23#section-3.1.1.2
             // PKCS#10 request = PKCSReq (19)
-            var messageType = new AsnEncodedData(Oids.Scep.MessageType, DerEncoding.EncodePrintableString("19"));
+            var messageType = new AsnEncodedData(Oids.Scep.MessageType, DerEncoding.EncodePrintableString(iMessageType.ToString()));
             signer.SignedAttributes.Add(messageType);
 
             // Tranaction ID (transId): https://tools.ietf.org/html/draft-nourse-scep-23#section-3.1.1.1
