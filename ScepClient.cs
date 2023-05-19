@@ -17,6 +17,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
@@ -178,13 +179,23 @@ namespace ScepClient
             CertificateRequest csr = new CertificateRequest(originalCertificate.SubjectName, originalCertificate.PublicKey, HashAlgorithmName.SHA256);
             foreach (X509Extension ext in originalCertificate.Extensions)
                 csr.CertificateExtensions.Add(ext);
-            byte[] pkcs10 = csr.CreateSigningRequest();
+            byte[] pkcs10 = csr.CreateSigningRequest(CreateSignatureGenerator(originalCertificate));
 
             if (null != pkcs10OutputPath)
                 File.WriteAllBytes(pkcs10OutputPath, pkcs10);
 
             byte[] binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, originalCertificate, true);
             File.WriteAllBytes(certOutputPath, binIssuedCert);
+        }
+
+        private static X509SignatureGenerator CreateSignatureGenerator(X509Certificate2 originalCertificate)
+        {
+            return originalCertificate.GetKeyAlgorithm() switch
+            {
+                "1.2.840.113549.1.1.1" => X509SignatureGenerator.CreateForRSA(originalCertificate.GetRSAPrivateKey(), RSASignaturePadding.Pkcs1),   // RSA
+                //"ECDsa" => X509SignatureGenerator.CreateForECDsa(originalCertificate.GetECDsaPrivateKey()), // untested
+                _ => throw new NotSupportedException($"The key algorithm {originalCertificate.GetKeyAlgorithm()} is not supported."),
+            };
         }
 
         private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
