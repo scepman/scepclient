@@ -293,7 +293,8 @@ namespace ScepClient
         private static byte[] SaveAsPkcs12(X509Certificate certificate, AsymmetricCipherKeyPair rsaKeyPair, string password)
         {
             MemoryStream p12Stream = new MemoryStream();
-            Pkcs12Store selfSignedExport = new Pkcs12Store();
+            Pkcs12StoreBuilder pkcs12StoreBuilder = new Pkcs12StoreBuilder();
+            Pkcs12Store selfSignedExport = pkcs12StoreBuilder.Build();
             selfSignedExport.SetKeyEntry("FirstKey", new AsymmetricKeyEntry(rsaKeyPair.Private), new X509CertificateEntry[] { new X509CertificateEntry(certificate) });
             selfSignedExport.Save(p12Stream, password.ToCharArray(), new SecureRandom());
             byte[] baSelfSignedCert = p12Stream.ToArray();
