@@ -169,8 +169,9 @@ namespace ScepClient
             X509Certificate2 selfSignedCert = new X509Certificate2(requestPfxPath, "password");
             byte[] pkcs10 = File.ReadAllBytes(requestPath);
 
-            byte[] binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
-            File.WriteAllBytes(certOutputPath, binIssuedCert);
+            byte[] binIssuedCertScepResponse = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
+            X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCertScepResponse);
+            File.WriteAllBytes(certOutputPath, bcIssuedCert.GetEncoded());
         }
 
         private static void RenewCertificate(string scepURL, string requestPfxPath, string certOutputPath, string pkcs10OutputPath)
@@ -184,8 +185,10 @@ namespace ScepClient
             if (null != pkcs10OutputPath)
                 File.WriteAllBytes(pkcs10OutputPath, pkcs10);
 
-            byte[] binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, originalCertificate, true);
-            File.WriteAllBytes(certOutputPath, binIssuedCert);
+            byte[] binIssuedCertScepResponse = SubmitPkcs10ToScep(scepURL, pkcs10, originalCertificate, true);
+
+            X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCertScepResponse);
+            File.WriteAllBytes(certOutputPath, bcIssuedCert.GetEncoded());
         }
 
         private static X509SignatureGenerator CreateSignatureGenerator(X509Certificate2 originalCertificate)
