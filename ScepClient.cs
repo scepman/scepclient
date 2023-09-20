@@ -242,7 +242,7 @@ namespace ScepClient
         private static void ImportPFX2MachineStore(bool useDebugOutput, string pfxPassword, byte[] issuedPkcs12)
         {
             using X509Certificate2 issuedCertificateAndPrivate = new X509Certificate2(issuedPkcs12, pfxPassword, X509KeyStorageFlags.Exportable);
-            RSACng keyFromPFx = new RSACng();
+            using RSACng keyFromPFx = new RSACng();
             keyFromPFx.FromXmlString(issuedCertificateAndPrivate.GetRSAPrivateKey().ToXmlString(true));
             var keyData = keyFromPFx.Key.Export(CngKeyBlobFormat.GenericPrivateBlob);
             var keyParams = new CngKeyCreationParameters
@@ -252,12 +252,12 @@ namespace ScepClient
                 Provider = CngProvider.MicrosoftSoftwareKeyStorageProvider
             };
             keyParams.Parameters.Add(new CngProperty(CngKeyBlobFormat.GenericPrivateBlob.Format, keyData, CngPropertyOptions.None));
-            CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
+            using CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
 
-            RSACng rsaCNG = new RSACng(key);
+            using RSACng rsaCNG = new RSACng(key);
 
-            X509Certificate2 certWithCNGKey = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
-            certWithCNGKey = certWithCNGKey.CopyWithPrivateKey(rsaCNG);
+            using X509Certificate2 cert = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
+            using X509Certificate2 certWithCNGKey = cert.CopyWithPrivateKey(rsaCNG);
             using X509Store storeLmMy = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
             storeLmMy.Add(certWithCNGKey);
             storeLmMy.Close();
