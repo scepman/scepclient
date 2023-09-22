@@ -201,6 +201,8 @@ namespace ScepClient
             };
         }
 
+        private const string MS_RSA_SCHANNEL_CSP = "Microsoft RSA SChannel Cryptographic Provider";
+
         private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
         {
             bool useDebugOutput = !string.IsNullOrEmpty(outputPath);
@@ -225,7 +227,7 @@ namespace ScepClient
                 binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
 
             X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCert);
-            byte[] issuedPkcs12 = SaveAsPkcs12(bcIssuedCert, rsaKeyPair, pfxPassword);
+            byte[] issuedPkcs12 = SaveAsPkcs12(bcIssuedCert, rsaKeyPair, pfxPassword, MS_RSA_SCHANNEL_CSP); // Kerberos Authentication certificates are stored in this CSP
             if (useDebugOutput)
                 File.WriteAllBytes(outputPath, issuedPkcs12);
 
@@ -242,24 +244,24 @@ namespace ScepClient
         private static void ImportPFX2MachineStore(bool useDebugOutput, string pfxPassword, byte[] issuedPkcs12)
         {
             using X509Certificate2 issuedCertificateAndPrivate = new X509Certificate2(issuedPkcs12, pfxPassword, X509KeyStorageFlags.Exportable);
-            using RSACng keyFromPFx = new RSACng();
-            keyFromPFx.FromXmlString(issuedCertificateAndPrivate.GetRSAPrivateKey().ToXmlString(true));
-            var keyData = keyFromPFx.Key.Export(CngKeyBlobFormat.GenericPrivateBlob);
-            var keyParams = new CngKeyCreationParameters
-            {
-                ExportPolicy = useDebugOutput ? CngExportPolicies.AllowPlaintextExport : CngExportPolicies.None,
-                KeyCreationOptions = CngKeyCreationOptions.MachineKey,
-                Provider = CngProvider.MicrosoftSoftwareKeyStorageProvider
-            };
-            keyParams.Parameters.Add(new CngProperty(CngKeyBlobFormat.GenericPrivateBlob.Format, keyData, CngPropertyOptions.None));
-            using CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
+            //using RSACng keyFromPFx = new RSACng();
+            //keyFromPFx.FromXmlString(issuedCertificateAndPrivate.GetRSAPrivateKey().ToXmlString(true));
+            //var keyData = keyFromPFx.Key.Export(CngKeyBlobFormat.GenericPrivateBlob);
+            //var keyParams = new CngKeyCreationParameters
+            //{
+            //    ExportPolicy = useDebugOutput ? CngExportPolicies.AllowPlaintextExport : CngExportPolicies.None,
+            //    KeyCreationOptions = CngKeyCreationOptions.MachineKey,
+            //    Provider = CngProvider.MicrosoftSoftwareKeyStorageProvider
+            //};
+            //keyParams.Parameters.Add(new CngProperty(CngKeyBlobFormat.GenericPrivateBlob.Format, keyData, CngPropertyOptions.None));
+            //using CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
 
-            using RSACng rsaCNG = new RSACng(key);
+            //using RSACng rsaCNG = new RSACng(key);
 
-            using X509Certificate2 cert = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
-            using X509Certificate2 certWithCNGKey = cert.CopyWithPrivateKey(rsaCNG);
+            //using X509Certificate2 cert = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
+            //using X509Certificate2 certWithCNGKey = cert.CopyWithPrivateKey(rsaCNG);
             using X509Store storeLmMy = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
-            storeLmMy.Add(certWithCNGKey);
+            storeLmMy.Add(issuedCertificateAndPrivate);
             storeLmMy.Close();
         }
 
@@ -311,12 +313,17 @@ namespace ScepClient
             return result?.Properties["netbiosname"][0].ToString();
         }
 
-        private static byte[] SaveAsPkcs12(X509Certificate certificate, AsymmetricCipherKeyPair rsaKeyPair, string password)
+        private const string OID_PKCS12_KEY_PROVIDER_NAME_ATTRIBUTE = "1.3.6.1.4.1.311.17.1";
+
+        private static byte[] SaveAsPkcs12(X509Certificate certificate, AsymmetricCipherKeyPair rsaKeyPair, string password, string targetCsp = null)
         {
             MemoryStream p12Stream = new MemoryStream();
             Pkcs12StoreBuilder pkcs12StoreBuilder = new Pkcs12StoreBuilder();
             Pkcs12Store selfSignedExport = pkcs12StoreBuilder.Build();
-            selfSignedExport.SetKeyEntry("FirstKey", new AsymmetricKeyEntry(rsaKeyPair.Private), new X509CertificateEntry[] { new X509CertificateEntry(certificate) });
+            Dictionary<DerObjectIdentifier, Asn1Encodable> dictKeyAttributes = new Dictionary<DerObjectIdentifier, Asn1Encodable>();
+            if (null != targetCsp)
+                dictKeyAttributes.Add(new DerObjectIdentifier(OID_PKCS12_KEY_PROVIDER_NAME_ATTRIBUTE), new DerBmpString(targetCsp));
+            selfSignedExport.SetKeyEntry("FirstKey", new AsymmetricKeyEntry(rsaKeyPair.Private, dictKeyAttributes), new X509CertificateEntry[] { new X509CertificateEntry(certificate) });
             selfSignedExport.Save(p12Stream, password.ToCharArray(), new SecureRandom());
             byte[] baSelfSignedCert = p12Stream.ToArray();
             return baSelfSignedCert;
