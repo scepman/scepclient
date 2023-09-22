@@ -163,9 +163,12 @@ namespace ScepClient
             X509Certificate2 selfSignedCert = new X509Certificate2(requestPfxPath, "password");
             byte[] pkcs10 = File.ReadAllBytes(requestPath);
 
-            byte[] binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
-            File.WriteAllBytes(certOutputPath, binIssuedCert);
+            byte[] binIssuedCertScepResponse = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
+            X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCertScepResponse);
+            File.WriteAllBytes(certOutputPath, bcIssuedCert.GetEncoded());
         }
+
+        private const string MS_RSA_SCHANNEL_CSP = "Microsoft RSA SChannel Cryptographic Provider";
 
         private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
         {
@@ -191,7 +194,7 @@ namespace ScepClient
                 binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
 
             X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCert);
-            byte[] issuedPkcs12 = SaveAsPkcs12(bcIssuedCert, rsaKeyPair, pfxPassword);
+            byte[] issuedPkcs12 = SaveAsPkcs12(bcIssuedCert, rsaKeyPair, pfxPassword, MS_RSA_SCHANNEL_CSP); // Kerberos Authentication certificates are stored in this CSP
             if (useDebugOutput)
                 File.WriteAllBytes(outputPath, issuedPkcs12);
 
@@ -207,23 +210,26 @@ namespace ScepClient
         private static void ImportPFX2MachineStore(bool useDebugOutput, string pfxPassword, byte[] issuedPkcs12)
         {
             using X509Certificate2 issuedCertificateAndPrivate = new X509Certificate2(issuedPkcs12, pfxPassword, X509KeyStorageFlags.Exportable);
-            RSACng keyFromPFx = new RSACng();
-            keyFromPFx.FromXmlString(issuedCertificateAndPrivate.GetRSAPrivateKey().ToXmlString(true));
-            var keyData = keyFromPFx.Key.Export(CngKeyBlobFormat.GenericPrivateBlob);
-            var keyParams = new CngKeyCreationParameters
-            {
-                ExportPolicy = useDebugOutput ? CngExportPolicies.AllowPlaintextExport : CngExportPolicies.None,
-                KeyCreationOptions = CngKeyCreationOptions.MachineKey,
-                Provider = CngProvider.MicrosoftSoftwareKeyStorageProvider
-            };
-            keyParams.Parameters.Add(new CngProperty(CngKeyBlobFormat.GenericPrivateBlob.Format, keyData, CngPropertyOptions.None));
-            CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
+            //using RSACng keyFromPFx = new RSACng();
+            //keyFromPFx.FromXmlString(issuedCertificateAndPrivate.GetRSAPrivateKey().ToXmlString(true));
+            //var keyData = keyFromPFx.Key.Export(CngKeyBlobFormat.GenericPrivateBlob);
+            //var keyParams = new CngKeyCreationParameters
+            //{
+            //    ExportPolicy = useDebugOutput ? CngExportPolicies.AllowPlaintextExport : CngExportPolicies.None,
+            //    KeyCreationOptions = CngKeyCreationOptions.MachineKey,
+            //    Provider = CngProvider.MicrosoftSoftwareKeyStorageProvider
+            //};
+            //keyParams.Parameters.Add(new CngProperty(CngKeyBlobFormat.GenericPrivateBlob.Format, keyData, CngPropertyOptions.None));
+            //using CngKey key = CngKey.Create(CngAlgorithm.Rsa, $"KDC-Key-{issuedCertificateAndPrivate.Thumbprint}", keyParams);
 
-            X509Certificate2 certWithCNGKey = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
-            certWithCNGKey = certWithCNGKey.CopyWithPersistedCngKeyFixed(key);
+            // RSACng rsaCNG = new RSACng(key);
+
+            // X509Certificate2 certWithCNGKey = new X509Certificate2(issuedCertificateAndPrivate.Export(X509ContentType.Cert));
+            // certWithCNGKey = certWithCNGKey.CopyWithPrivateKeyFixed(rsaCNG);
+
             using X509Store storeLmMy = new X509Store(StoreName.My, StoreLocation.LocalMachine);
             storeLmMy.Open(OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
-            storeLmMy.Add(certWithCNGKey);
+            storeLmMy.Add(issuedCertificateAndPrivate);
             storeLmMy.Close();
         }
 
@@ -274,11 +280,17 @@ namespace ScepClient
             return result?.Properties["netbiosname"][0].ToString();
         }
 
-        private static byte[] SaveAsPkcs12(X509Certificate certificate, AsymmetricCipherKeyPair rsaKeyPair, string password)
+        private const string OID_PKCS12_KEY_PROVIDER_NAME_ATTRIBUTE = "1.3.6.1.4.1.311.17.1";
+
+        private static byte[] SaveAsPkcs12(X509Certificate certificate, AsymmetricCipherKeyPair rsaKeyPair, string password, string targetCsp = null)
         {
             MemoryStream p12Stream = new MemoryStream();
-            Pkcs12Store selfSignedExport = new Pkcs12Store();
-            selfSignedExport.SetKeyEntry("FirstKey", new AsymmetricKeyEntry(rsaKeyPair.Private), new X509CertificateEntry[] { new X509CertificateEntry(certificate) });
+            Pkcs12StoreBuilder pkcs12StoreBuilder = new Pkcs12StoreBuilder();
+            Pkcs12Store selfSignedExport = pkcs12StoreBuilder.Build();
+            Dictionary<DerObjectIdentifier, Asn1Encodable> dictKeyAttributes = new Dictionary<DerObjectIdentifier, Asn1Encodable>();
+            if (null != targetCsp)
+                dictKeyAttributes.Add(new DerObjectIdentifier(OID_PKCS12_KEY_PROVIDER_NAME_ATTRIBUTE), new DerBmpString(targetCsp));
+            selfSignedExport.SetKeyEntry("FirstKey", new AsymmetricKeyEntry(rsaKeyPair.Private, dictKeyAttributes), new X509CertificateEntry[] { new X509CertificateEntry(certificate) });
             selfSignedExport.Save(p12Stream, password.ToCharArray(), new SecureRandom());
             byte[] baSelfSignedCert = p12Stream.ToArray();
             return baSelfSignedCert;
@@ -355,7 +367,7 @@ namespace ScepClient
             keyPurpose = keyPurpose.Replace("Authentication", "Auth"); // The abbreviation in BC
 
             IEnumerable<FieldInfo> knownKeyPurposeFields = typeof(KeyPurposeID).GetFields(BindingFlags.Static | BindingFlags.Public)
-                .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID)); // get known Key Purposes from Bouncy Castle class
+                .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID) && !fieldCandidate.IsDefined(typeof(ObsoleteAttribute), false)); // get known Key Purposes from Bouncy Castle class
 
             // now match key purposes either by name (partial) or by OID value (exact)
             FieldInfo matchingPurpose = knownKeyPurposeFields
@@ -391,7 +403,7 @@ namespace ScepClient
             File.WriteAllBytes(pfxOutputPath, issuedPkcs12);
         }
 
-        private static byte[] SubmitPkcs10ToScep(string scepURL, byte[] pkcs10, X509Certificate2 signerCert)
+        private static byte[] SubmitPkcs10ToScep(string scepURL, byte[] pkcs10, X509Certificate2 signerCert, bool isRenewal = false)
         {
             var webClient = new WebClient();
 
@@ -399,7 +411,7 @@ namespace ScepClient
 
             var encryptedMessageData = CreateEnvelopedDataPkcs7(pkcs10, caChain);
 
-            var encodedMessage = CreateSignedDataPkcs7(encryptedMessageData, signerCert);
+            var encodedMessage = CreateSignedDataPkcs7(encryptedMessageData, signerCert, isRenewal ? 17 : 19); // 17 = Renewal Request, 19 = PKCSReq
 
             byte[] data = webClient.UploadData(scepURL, encodedMessage);
             //byte[] data = SubmitRequestToScepWithGET(scepURL, webClient, encodedMessage);
@@ -509,7 +521,7 @@ namespace ScepClient
 
         private static byte[] lastSenderNonce;
 
-        private static byte[] CreateSignedDataPkcs7(byte[] encryptedMessageData, X509Certificate2 localPrivateKey)
+        private static byte[] CreateSignedDataPkcs7(byte[] encryptedMessageData, X509Certificate2 localPrivateKey, int iMessageType)
         {
             // Create the outer envelope, signed with the local private key
             var signer = new CmsSigner(localPrivateKey)
@@ -519,7 +531,7 @@ namespace ScepClient
 
             // Message Type (messageType): https://tools.ietf.org/html/draft-nourse-scep-23#section-3.1.1.2
             // PKCS#10 request = PKCSReq (19)
-            var messageType = new AsnEncodedData(Oids.Scep.MessageType, DerEncoding.EncodePrintableString("19"));
+            var messageType = new AsnEncodedData(Oids.Scep.MessageType, DerEncoding.EncodePrintableString(iMessageType.ToString()));
             signer.SignedAttributes.Add(messageType);
 
             // Tranaction ID (transId): https://tools.ietf.org/html/draft-nourse-scep-23#section-3.1.1.1
