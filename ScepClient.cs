@@ -209,7 +209,7 @@ namespace ScepClient
         /// </summary>
         private static void ImportPFX2MachineStore(bool useDebugOutput, string pfxPassword, byte[] issuedPkcs12)
         {
-            using X509Certificate2 issuedCertificateAndPrivate = new X509Certificate2(issuedPkcs12, pfxPassword, X509KeyStorageFlags.Exportable);
+            using X509Certificate2 issuedCertificateAndPrivate = new X509Certificate2(issuedPkcs12, pfxPassword, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
             //using RSACng keyFromPFx = new RSACng();
             //keyFromPFx.FromXmlString(issuedCertificateAndPrivate.GetRSAPrivateKey().ToXmlString(true));
             //var keyData = keyFromPFx.Key.Export(CngKeyBlobFormat.GenericPrivateBlob);
