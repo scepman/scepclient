@@ -9,7 +9,7 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     environment: AzureC4A8CodeSigning
     permissions:
       id-token: write # This is required for requesting the JWT
@@ -44,9 +44,9 @@ jobs:
 
       - name: Azure CLI get token
         run: |
-          kv_token=$(az account get-access-token --scope https://vault.azure.net/.default --query accessToken --output tsv)
+          $kv_token=$(az account get-access-token --scope https://vault.azure.net/.default --query accessToken --output tsv)
           echo "::add-mask::$kv_token"
-          echo "CODE_SIGN_AKV_ACCESS_TOKEN=$kv_token" >> $GITHUB_ENV
+          echo "CODE_SIGN_AKV_ACCESS_TOKEN=$kv_token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Code-sign the extracted exe
         run: |
