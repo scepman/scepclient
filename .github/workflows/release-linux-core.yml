@@ -78,12 +78,7 @@ jobs:
           draft: true
           prerelease: false
 
-          # Some debug output
-      - name: "[Debug] Where Are We"
-        run: pwd
-      - name: "[Debug] List Files"
-        run: ls -Rs
-          
+         
       - name: Upload Artifacts to Release
         uses: actions/upload-release-asset@v1.0.2
         env:
