@@ -32,7 +32,7 @@ jobs:
         run: dotnet tool install --no-cache --global AzureSignTool
   
       - name: Azure CLI login
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           tenant-id: a53834b7-42bc-46a3-b004-369735c3acf9 # c4a8.onmicrosoft.com
           client-id: 97676fd8-6001-4096-be4a-fbed37f1355b # from Entra ID app registration
