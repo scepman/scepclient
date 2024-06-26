@@ -59,12 +59,12 @@ jobs:
 
         # Now we do not have the ZIP anymore, so we must re-zip the extracted exe
       - name: ZIP EXE for download
-        run: zip --junk-paths scepclient-core-win-x64 publish/scepclient-win-x64/ScepClient.exe
-    
+        run: Compress-Archive -Path publish/scepclient-win-x64/ScepClient.exe -DestinationPath scepclient-core-win-x64.zip -Force
+
       - name: Create tag
         id: create_tag
         run: |
-          tag=$(date +"%Y%m%d-%H%M-windows-core")
+          $tag=$(date +"%Y%m%d-%H%M-windows-core")
           echo "::set-output name=tag::$tag"
 
       - name: Create Draft Release

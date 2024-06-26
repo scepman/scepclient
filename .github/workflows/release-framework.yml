@@ -59,12 +59,13 @@ jobs:
 
         # Now we do not have the ZIP anymore, so we must re-zip the extracted exe
       - name: ZIP EXE for download
-        run: zip --junk-paths scepclient-framework-win-x64 publish/scepclient-win-x64/*.exe publish/scepclient-win-x64/*.exe.config publish/scepclient-win-x64/*.dll
-    
+        run: |
+          Compress-Archive -Path publish/scepclient-win-x64/*.exe, publish/scepclient-win-x64/*.exe.config, publish/scepclient-win-x64/*.dll -DestinationPath scepclient-framework-win-x64.zip -Force
+
       - name: Create tag
         id: create_tag
         run: |
-          tag=$(date +"%Y%m%d-%H%M-framework")
+          $tag=$(date +"%Y%m%d-%H%M-framework")
           echo "::set-output name=tag::$tag"
 
       - name: Create Draft Release
@@ -79,11 +80,6 @@ jobs:
           prerelease: false
 
           # Some debug output
-      - name: "[Debug] Where Are We"
-        run: pwd
-      - name: "[Debug] List Files"
-        run: ls -Rs
-          
       - name: Upload Artifacts to Release
         uses: actions/upload-release-asset@v1.0.2
         env:

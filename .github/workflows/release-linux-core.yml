@@ -56,16 +56,15 @@ jobs:
             --azure-key-vault-certificate "glueckkanja-ag-202311" `
             --timestamp-rfc3161 "http://timestamp.digicert.com" `
             publish/scepclient-linux-x64/ScepClient
-  
 
         # Now we do not have the ZIP anymore, so we must re-zip the extracted exe
       - name: ZIP EXE for download
-        run: zip --junk-paths scepclient-core-linux-x64 publish/scepclient-linux-x64/ScepClient
+        run: Compress-Archive -Path publish/scepclient-win-x64/ScepClient -DestinationPath scepclient-core-linux-x64.zip -Force
     
       - name: Create tag
         id: create_tag
         run: |
-          tag=$(date +"%Y%m%d-%H%M-linux-core")
+          $tag=$(date +"%Y%m%d-%H%M-linux-core")
           echo "::set-output name=tag::$tag"
 
       - name: Create Draft Release
