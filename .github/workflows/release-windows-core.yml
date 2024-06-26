@@ -10,6 +10,10 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: AzureC4A8CodeSigning
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: write # This is required for creating a release (as using 'permissions:' will reset the default rights to 'none')
     steps:
       - name: Download artifact
         uses: dawidd6/action-download-artifact@v6
