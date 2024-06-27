@@ -66,7 +66,7 @@ jobs:
         id: create_tag
         run: |
           $tag=$(date +"%Y%m%d-%H%M-framework")
-          echo "::set-output name=tag::$tag"
+          echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Create Draft Release
         id: create_release
