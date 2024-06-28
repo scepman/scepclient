@@ -63,9 +63,10 @@ jobs:
 
       - name: Create tag
         id: create_tag
+        shell: bash
         run: |
-          $tag=$(date +"%Y%m%d-%H%M-windows-core")
-          echo "tag=$tag" >> $GITHUB_ENV
+          tag=$(date +"%Y%m%d-%H%M-windows-core")
+          echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Create Draft Release
         id: create_release

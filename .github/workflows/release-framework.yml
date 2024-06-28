@@ -64,9 +64,10 @@ jobs:
 
       - name: Create tag
         id: create_tag
+        shell: bash
         run: |
           $tag=$(date +"%Y%m%d-%H%M-framework")
-          echo "tag=$tag" >> $GITHUB_ENV
+          echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Create Draft Release
         id: create_release
