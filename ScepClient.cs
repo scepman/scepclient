@@ -290,7 +290,7 @@ namespace ScepClient
             Dictionary<DerObjectIdentifier, Asn1Encodable> dictKeyAttributes = new Dictionary<DerObjectIdentifier, Asn1Encodable>();
             if (null != targetCsp)
                 dictKeyAttributes.Add(new DerObjectIdentifier(OID_PKCS12_KEY_PROVIDER_NAME_ATTRIBUTE), new DerBmpString(targetCsp));
-            selfSignedExport.SetKeyEntry("FirstKey", new AsymmetricKeyEntry(rsaKeyPair.Private, dictKeyAttributes), new X509CertificateEntry[] { new X509CertificateEntry(certificate) });
+            selfSignedExport.SetKeyEntry("SCEPclient Certificate", new AsymmetricKeyEntry(rsaKeyPair.Private, dictKeyAttributes), new X509CertificateEntry[] { new X509CertificateEntry(certificate) });
             selfSignedExport.Save(p12Stream, password.ToCharArray(), new SecureRandom());
             byte[] baSelfSignedCert = p12Stream.ToArray();
             return baSelfSignedCert;
