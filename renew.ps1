@@ -1,7 +1,8 @@
 <#
 Powershell script for renewing certificate using MTLS endpoint using powershell
 
-Could possibly (?) be done using native powershell commands but the logic was already written in bash using OpenSSL
+Example use
+RenewCertificateMTLS -Certificate "path\to\cert\certificate.pfx" -Password "password-for-private-key" -AppServiceUrl "https://scepman-appservice.net/"
 #>
 
 using namespace System.Security.Cryptography.X509Certificates
@@ -10,7 +11,7 @@ using namespace System.Net.Http
 using namespace System.Net.Security
 
 
-Function RenewCertificateMTLS($CertificatePath, $AppServiceUrl) {
+Function RenewCertificateMTLS($CertificatePath, $Password, $AppServiceUrl) {
     $TempCSR = New-TemporaryFile
     $TempP7B = New-TemporaryFile
     $TempINF = New-TemporaryFile
@@ -50,7 +51,7 @@ Function RenewCertificateMTLS($CertificatePath, $AppServiceUrl) {
     # Invoke-WebRequest would be easiest option - but doesn't work due to nature of cmd
     # Invoke-WebRequest -Certificate certificate-test.pfx -Body $Body -ContentType "application/pkcs10" -Credential "5hEgpuJQI5afsY158Ot5A87u" -Uri "$AppServiceUrl/.well-known/est/simplereenroll" -OutFile outfile.txt
     # So use HTTPClient instead
-    $cert = New-Object X509Certificate2($CertificatePath, "TCR7Mq0Sw3XssyPmmtGIoBlk")
+    $cert = New-Object X509Certificate2($CertificatePath, $Password)
     # write-host for debugging
     Write-Host "Cert Has Private Key: $($cert.HasPrivateKey)"
 
@@ -75,9 +76,7 @@ Function RenewCertificateMTLS($CertificatePath, $AppServiceUrl) {
     Write-Output "-----BEGIN PKCS7-----" > "$TempP7B"
     Write-Output $responseContent >> "$TempP7B"
     Write-Output "-----END PKCS7-----" >> "$TempP7B"
-    # Convert PKCS7 to PEM
+    # Put new certificate into certificate store 
     CertReq -accept $TempP7B
-
 }
 
-RenewCertificateMTLS -Certificate "C:\Users\BenGodwin\OneDrive - glueckkanja-gab\Desktop\scepclient\certificate-test.pfx" -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/"
