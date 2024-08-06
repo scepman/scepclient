@@ -11,7 +11,7 @@ using namespace System.Net.Http
 using namespace System.Net.Security
 
 
-Function RenewCertificateMTLS($CertificatePath, $Password, $AppServiceUrl) {
+Function RenewCertificateMTLS($cert) {
     $TempCSR = New-TemporaryFile
     $TempP7B = New-TemporaryFile
     $TempINF = New-TemporaryFile
@@ -43,7 +43,6 @@ Function RenewCertificateMTLS($CertificatePath, $Password, $AppServiceUrl) {
     OID=1.3.6.1.5.5.7.3.1 ; this is for Server Authentication / Token Signing'
     $Inf | Out-File -FilePath $TempINF
 
-    $body = Get-Content $TempCSR
     # Create new key and CSR
     CertReq -new $TempINF $TempCSR
 
@@ -51,7 +50,6 @@ Function RenewCertificateMTLS($CertificatePath, $Password, $AppServiceUrl) {
     # Invoke-WebRequest would be easiest option - but doesn't work due to nature of cmd
     # Invoke-WebRequest -Certificate certificate-test.pfx -Body $Body -ContentType "application/pkcs10" -Credential "5hEgpuJQI5afsY158Ot5A87u" -Uri "$AppServiceUrl/.well-known/est/simplereenroll" -OutFile outfile.txt
     # So use HTTPClient instead
-    $cert = New-Object X509Certificate2($CertificatePath, $Password)
     # write-host for debugging
     Write-Host "Cert Has Private Key: $($cert.HasPrivateKey)"
 
@@ -80,3 +78,62 @@ Function RenewCertificateMTLS($CertificatePath, $Password, $AppServiceUrl) {
     CertReq -accept $TempP7B
 }
 
+Function GetSCEPmanCerts {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$AppServiceUrl,
+        [Parameter(Mandatory=$false)]
+        [string]$FilterString,
+        [Parameter(Mandatory=$false)]
+        [string]$ValidityThresholdDays
+    )
+    $rootCaUrl = "$AppServiceUrl/certsrv/mscep/mscep.dll/pkiclient.exe?operation=GetCACert"
+    $rootPath = New-TemporaryFile
+    Invoke-WebRequest -Uri $rootCaUrl -OutFile $rootPath
+
+    # Load the downloaded certificate
+    $rootCert = New-Object X509Certificate2($rootPath)
+
+    # Open the 'My' certificate store
+    $store = New-Object System.Security.Cryptography.X509Certificates.X509Store("My", "CurrentUser")
+    $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+    # Find all certificates in the 'My' store that are issued by the downloaded certificate
+    $certs = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object { $_.Issuer -eq $rootCert.Issuer }
+    $certs += Get-ChildItem -Path "Cert:\CurrentUser\My" | Where-Object { $_.Issuer -eq $rootCert.Issuer }
+    if ($FilterString) {
+        $certs = $certs | Where-Object { $_.Subject -Match $FilterString } 
+    }
+    if (!($ValidityThresholdDays)) {
+        $ValidityThresholdDays = 30  # Default is 30 days
+    }
+    $ValidityThreshold = New-TimeSpan -Days $ValidityThresholdDays
+    $certs = $certs | Where-Object { $ValidityThreshold -ge $_.NotAfter.Subtract([DateTime]::UtcNow) }
+
+    $certs | ForEach-Object {
+        Write-Output "Found certificate issued by the downloaded certificate:"
+        Write-Output "Subject: $($_.Subject)"
+        Write-Output "Issuer: $($_.Issuer)"
+        Write-Output "Thumbprint: $($_.Thumbprint)"
+    }
+    return $certs
+}
+
+Function RenewSCEPmanCerts {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$AppServiceUrl,
+        [Parameter(Mandatory=$false)]
+        [string]$FilterString,
+        [Parameter(Mandatory=$false)]
+        [string]$ValidityThresholdDays
+    )
+    
+    # Get all candidate certs
+    $certs = GetSCEPmanCerts -AppServiceUrl $AppServiceUrl -FilterString $FilterString -ValidityThresholdDays $ValidityThreshold
+    # Renew all certs
+    $certs | ForEach-Object { RenewCertificateMTLS -cert $_ }
+}
+
+GetSCEPmanCerts -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -ValidityThresholdDays 100
+
+# RenewCertificateMTLS -Certificate "C:\Users\BenGodwin\OneDrive - glueckkanja-gab\Desktop\scepclient\certificate-test.pfx" -Password "TCR7Mq0Sw3XssyPmmtGIoBlk" -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/"
