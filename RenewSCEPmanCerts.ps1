@@ -1,8 +1,27 @@
 <#
-Powershell script for renewing certificate using MTLS endpoint using powershell
+ .Synopsis
+  Powershell script for renewing certificate using MTLS endpoint of SCEPman.
 
-Example use
-RenewCertificateMTLS -Certificate "path\to\cert\certificate.pfx" -AppServiceUrl "https://scepman-appservice.net/"
+ .Parameter Certificate
+  The certificate to renew.
+
+ .Parameter AppServiceUrl
+  The URL of the SCEPman App Service
+
+ .Parameter User
+  Set this flag to renew a user certificate. 
+
+ .Parameter Machine 
+  Set this flag to renew a machine certificate. (Either User or Machine must be set)
+
+ .Parameter FilterString
+  Only renew certificates whose Subject field contains the filter string.
+
+ .Parameter ValidityThresholdDays
+  Will only renew certificates that are within this number of days of expiry (default value is 30).
+
+ .Example
+  RenewSCEPmanCerts -AppServiceUrl "https://scepman-appservice.net/" -User -ValidityThresholdDays 100 -FilterString "certificate"
 #>
 
 using namespace System.Security.Cryptography.X509Certificates
@@ -10,7 +29,7 @@ using namespace System.Security.Authentication
 using namespace System.Net.Http
 using namespace System.Net.Security
 
-Function RenewCertificateMTLS() {
+Function RenewCertificateMTLS {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
@@ -60,14 +79,14 @@ Function RenewCertificateMTLS() {
     $Inf | Out-File -FilePath $TempINF
 
     # Create new key and CSR
+    Remove-Item $TempCSR # Remove CSR file we just have the file name and don't have to overwrite a file
     CertReq -new $TempINF $TempCSR
 
     # Create renewed version of certificate.
     # Invoke-WebRequest would be easiest option - but doesn't work due to nature of cmd
     # Invoke-WebRequest -Certificate certificate-test.pfx -Body $Body -ContentType "application/pkcs10" -Credential "5hEgpuJQI5afsY158Ot5A87u" -Uri "$AppServiceUrl/.well-known/est/simplereenroll" -OutFile outfile.txt
     # So use HTTPClient instead
-    # write-host for debugging
-    Write-Host "Cert Has Private Key: $($Certificate.HasPrivateKey)"
+    Write-Information "Cert Has Private Key: $($Certificate.HasPrivateKey)"
 
     $handler = New-Object HttpClientHandler
     $handler.ClientCertificates.Add($Certificate)
@@ -152,10 +171,10 @@ Function GetSCEPmanCerts {
     $certs = $certs | Where-Object { $ValidityThreshold -ge $_.NotAfter.Subtract([DateTime]::UtcNow) }
 
     $certs | ForEach-Object {
-        Write-Verbose "Found certificate issued by the downloaded certificate:"
-        Write-Verbose "Subject: $($_.Subject)"
-        Write-Verbose "Issuer: $($_.Issuer)"
-        Write-Verbose "Thumbprint: $($_.Thumbprint)"
+        Write-Information "Found certificate issued by your SCEPman root:"
+        Write-Information "    Subject: $($_.Subject)"
+        Write-Information "    Issuer: $($_.Issuer)"
+        Write-Information "    Thumbprint: $($_.Thumbprint)"
     }
     return $certs
 }
@@ -202,13 +221,3 @@ Function RenewSCEPmanCerts {
         }
     }
 }
-
-# $certs = GetSCEPmanCerts -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -User -ValidityThresholdDays 1000
-# # how to get type of object in powershell?
-# Write-Output $certs
-
-# RenewSCEPmanCerts -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -ValidityThresholdDays 100
-
-# RenewCertificateMTLS -Certificate $certs[6] -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -Machine
-
-# RenewSCEPmanCerts -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -User -ValidityThresholdDays 1000 -FilterString "testcert2"
