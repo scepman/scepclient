@@ -2,7 +2,7 @@
 Powershell script for renewing certificate using MTLS endpoint using powershell
 
 Example use
-RenewCertificateMTLS -Certificate "path\to\cert\certificate.pfx" -Password "password-for-private-key" -AppServiceUrl "https://scepman-appservice.net/"
+RenewCertificateMTLS -Certificate "path\to\cert\certificate.pfx" -AppServiceUrl "https://scepman-appservice.net/"
 #>
 
 using namespace System.Security.Cryptography.X509Certificates
@@ -10,8 +10,24 @@ using namespace System.Security.Authentication
 using namespace System.Net.Http
 using namespace System.Net.Security
 
+Function RenewCertificateMTLS() {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)]
+        [System.Security.Cryptography.X509Certificates.X509Certificate]$Certificate,
+        [Parameter(Mandatory=$true)]
+        [string]$AppServiceUrl,
+        [Parameter(Mandatory=$true, ParameterSetName="User")]
+        [switch]$User,
+        [Parameter(Mandatory=$true, ParameterSetName="Machine")]
+        [switch]$Machine
+    )
 
-Function RenewCertificateMTLS($Certificate) {
+    if (!$User -and !$Machine) {
+        Write-Error "You must specify either -user or -machine."
+        return
+    }
+
     $TempCSR = New-TemporaryFile
     $TempP7B = New-TemporaryFile
     $TempINF = New-TemporaryFile
@@ -29,7 +45,6 @@ Function RenewCertificateMTLS($Certificate) {
     KeySpec = 1
     KeyLength = 2048
     Exportable = TRUE
-    MachineKeySet = TRUE
     SMIME = False
     PrivateKeyArchive = FALSE
     UserProtected = FALSE
@@ -37,10 +52,11 @@ Function RenewCertificateMTLS($Certificate) {
     ProviderName = "Microsoft RSA SChannel Cryptographic Provider"
     ProviderType = 12
     RequestType = PKCS10
-    KeyUsage = 0xa0
-    
-    [EnhancedKeyUsageExtension]
-    OID=1.3.6.1.5.5.7.3.1 ; this is for Server Authentication / Token Signing'
+    KeyUsage = 0xa0'
+    if ($Machine) {
+        $Inf += "`nMachineKeySet = True" #Command still works without, but cert doesn't appear in store.
+    }
+
     $Inf | Out-File -FilePath $TempINF
 
     # Create new key and CSR
@@ -75,29 +91,57 @@ Function RenewCertificateMTLS($Certificate) {
     Write-Output $responseContent >> "$TempP7B"
     Write-Output "-----END PKCS7-----" >> "$TempP7B"
     # Put new certificate into certificate store 
+    # (doesn't need to use certreq -submit because that's what the est endpoint is basically doing (submitting to CA))
     CertReq -accept $TempP7B
 }
 
 Function GetSCEPmanCerts {
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
         [string]$AppServiceUrl,
+        [Parameter(Mandatory=$true, ParameterSetName="User")]
+        [switch]$User,
+        [Parameter(Mandatory=$true, ParameterSetName="Machine")]
+        [switch]$Machine,
         [Parameter(Mandatory=$false)]
         [string]$FilterString,
         [Parameter(Mandatory=$false)]
         [string]$ValidityThresholdDays
     )
+
+    if (!$User -and !$Machine) {
+        Write-Error "You must specify either -user or -machine."
+        return
+    }
     
     $rootCaUrl = "$AppServiceUrl/certsrv/mscep/mscep.dll/pkiclient.exe?operation=GetCACert"
     $rootPath = New-TemporaryFile
     Invoke-WebRequest -Uri $rootCaUrl -OutFile $rootPath
+    if ($?) {
+        Write-Information "Root certificate downloaded to $rootPath"
+    } else {
+        Write-Error "Failed to download root certificate from $rootCaUrl"
+        return $null
+    }
 
     # Load the downloaded certificate
     $rootCert = New-Object X509Certificate2($rootPath)
-s
+
     # Find all certificates in the 'My' stores that are issued by the downloaded certificate
-    $certs = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object { $_.Issuer -eq $rootCert.Issuer }
-    $certs += Get-ChildItem -Path "Cert:\CurrentUser\My" | Where-Object { $_.Issuer -eq $rootCert.Issuer }
+    if ($Machine) {
+        $certs = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object { $_.Issuer -eq $rootCert.Issuer }
+        Write-Information "Found $($certs.Count) machine certificates"
+    } elseif ($User) {
+        $certs = Get-ChildItem -Path "Cert:\CurrentUser\My" | Where-Object { $_.Issuer -eq $rootCert.Issuer }
+        Write-Information "Found $($certs.Count) user certificates"
+    }
+
+    if (!$certs) {
+        Write-Error "No certificates found that are issued by the downloaded certificate."
+        return $null
+    }
+
     if ($FilterString) {
         $certs = $certs | Where-Object { $_.Subject -Match $FilterString } 
     }
@@ -108,30 +152,63 @@ s
     $certs = $certs | Where-Object { $ValidityThreshold -ge $_.NotAfter.Subtract([DateTime]::UtcNow) }
 
     $certs | ForEach-Object {
-        Write-Output "Found certificate issued by the downloaded certificate:"
-        Write-Output "Subject: $($_.Subject)"
-        Write-Output "Issuer: $($_.Issuer)"
-        Write-Output "Thumbprint: $($_.Thumbprint)"
+        Write-Verbose "Found certificate issued by the downloaded certificate:"
+        Write-Verbose "Subject: $($_.Subject)"
+        Write-Verbose "Issuer: $($_.Issuer)"
+        Write-Verbose "Thumbprint: $($_.Thumbprint)"
     }
     return $certs
 }
 
 Function RenewSCEPmanCerts {
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
         [string]$AppServiceUrl,
+        [Parameter(Mandatory=$true, ParameterSetName="User")]
+        [switch]$User,
+        [Parameter(Mandatory=$true, ParameterSetName="Machine")]
+        [switch]$Machine,
         [Parameter(Mandatory=$false)]
         [string]$FilterString,
         [Parameter(Mandatory=$false)]
         [string]$ValidityThresholdDays
     )
+
+    $GetCertsCmd = "GetSCEPmanCerts -AppServiceUrl $AppServiceUrl"
+    if ($User) {
+        $GetCertsCmd += " -User"
+    } elseif ($Machine) {
+        $GetCertsCmd += " -Machine"
+    } else {
+        Write-Error "You must specify either -User or -Machine."
+        return
+    }
+    if ($FilterString) {
+        $GetCertsCmd += " -FilterString $FilterString"
+    }
+    if ($ValidityThresholdDays) {
+        $GetCertsCmd += " -ValidityThresholdDays $ValidityThresholdDays"
+    }
     
     # Get all candidate certs
-    $certs = GetSCEPmanCerts -AppServiceUrl $AppServiceUrl -FilterString $FilterString -ValidityThresholdDays $ValidityThreshold
+    $certs = Invoke-Expression $GetCertsCmd
     # Renew all certs
-    $certs | ForEach-Object { RenewCertificateMTLS -Certificate $_ }
+    $certs | ForEach-Object { 
+        if ($User) {
+            RenewCertificateMTLS -AppServiceUrl $AppServiceUrl -User -Certificate $_
+        } elseif ($Machine) {
+            RenewCertificateMTLS -AppServiceUrl $AppServiceUrl -Machine -Certificate $_
+        }
+    }
 }
 
-GetSCEPmanCerts -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -ValidityThresholdDays 100
+# $certs = GetSCEPmanCerts -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -User -ValidityThresholdDays 1000
+# # how to get type of object in powershell?
+# Write-Output $certs
 
-# RenewCertificateMTLS -Certificate "C:\Users\BenGodwin\OneDrive - glueckkanja-gab\Desktop\scepclient\certificate-test.pfx" -Password "TCR7Mq0Sw3XssyPmmtGIoBlk" -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/"
+# RenewSCEPmanCerts -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -ValidityThresholdDays 100
+
+# RenewCertificateMTLS -Certificate $certs[6] -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -Machine
+
+# RenewSCEPmanCerts -AppServiceUrl "https://app-scepman-csz5hqanxf6cs.azurewebsites.net/" -User -ValidityThresholdDays 1000 -FilterString "testcert2"
