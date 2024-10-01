@@ -5,7 +5,6 @@ using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Operators;
-using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Prng;
 using Org.BouncyCastle.Pkcs;
 using Org.BouncyCastle.Security;
@@ -17,15 +16,12 @@ using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reflection;
-using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Text.RegularExpressions;
 using AsnX509 = Org.BouncyCastle.Asn1.X509;
 using BCPkcs = Org.BouncyCastle.Asn1.Pkcs;
 using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
@@ -107,7 +103,7 @@ namespace ScepClient
         private static void PrintUsage()
         {
             Console.WriteLine("SCEPClient");
-            Console.WriteLine("2023 by glueckkanja-gab, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
+            Console.WriteLine("2024 by glueckkanja, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
             Console.WriteLine();
             Console.WriteLine("Usage: ScepClient.exe <command> <URL> <further parameters...>");
             Console.WriteLine();
