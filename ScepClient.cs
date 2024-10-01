@@ -1,4 +1,5 @@
-﻿using Org.BouncyCastle.Asn1;
+﻿using Common.Util;
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Crypto;
@@ -375,7 +376,7 @@ namespace ScepClient
 
             if (null != keyPurposes)
             {
-                Asn1Encodable ekuExtension = new ExtendedKeyUsage(keyPurposes.Select(keyPurposeString => ParseKeyPurpose(keyPurposeString)));
+                Asn1Encodable ekuExtension = new ExtendedKeyUsage(keyPurposes.Select(keyPurposeString => KeyPurposeIDUtil.ParseKeyPurpose(keyPurposeString)));
                 extensions.AddExtension(X509Extensions.ExtendedKeyUsage, false, ekuExtension);
             }
 
@@ -389,26 +390,6 @@ namespace ScepClient
                 rsaKeyPair.Private
             );
             return request;
-        }
-
-        /// <summary>
-        /// Pass a Key Purpose for Extended Key Usage either by name or by OID and get the corresponding BC type KeyPurposeID
-        /// </summary>
-        private static KeyPurposeID ParseKeyPurpose(string keyPurpose)
-        {
-            keyPurpose = keyPurpose.Replace(" ", string.Empty); // Remove spaces, as they don't appear in the BC KeyPurposeID names
-            keyPurpose = keyPurpose.Replace("Authentication", "Auth"); // The abbreviation in BC
-
-            IEnumerable<FieldInfo> knownKeyPurposeFields = typeof(KeyPurposeID).GetFields(BindingFlags.Static | BindingFlags.Public)
-                .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID) && !fieldCandidate.IsDefined(typeof(ObsoleteAttribute), false)); // get known Key Purposes from Bouncy Castle class
-
-            // now match key purposes either by name (partial) or by OID value (exact)
-            FieldInfo matchingPurpose = knownKeyPurposeFields
-                .SingleOrDefault(kpField =>
-                kpField.Name.Contains(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ||
-                (kpField.GetValue(null)?.ToString().Equals(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ?? false));
-
-            return (KeyPurposeID)matchingPurpose?.GetValue(null);
         }
 
         private static void GenerateNew(string scepURL, string pfxOutputPath, string certOutputPath, string pkcs10OutputPath, string challengePassword, string cN, IEnumerable<string> additionalDNSEntries, IEnumerable<string> keyPurposes)
