@@ -5,7 +5,6 @@ using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Operators;
-using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Prng;
 using Org.BouncyCastle.Pkcs;
 using Org.BouncyCastle.Security;
@@ -17,14 +16,12 @@ using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Text.RegularExpressions;
 using AsnX509 = Org.BouncyCastle.Asn1.X509;
 using BCPkcs = Org.BouncyCastle.Asn1.Pkcs;
 using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
@@ -104,7 +101,7 @@ namespace ScepClient
         private static void PrintUsage()
         {
             Console.WriteLine("SCEPClient");
-            Console.WriteLine("2023 by glueckkanja-gab, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
+            Console.WriteLine("2024 by glueckkanja, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
             Console.WriteLine();
             Console.WriteLine("Usage: ScepClient.exe <command> <URL> <further parameters...>");
             Console.WriteLine();
@@ -342,7 +339,7 @@ namespace ScepClient
 
             if (null != keyPurposes)
             {
-                Asn1Encodable ekuExtension = new ExtendedKeyUsage(keyPurposes.Select(keyPurposeString => ParseKeyPurpose(keyPurposeString)));
+                Asn1Encodable ekuExtension = new ExtendedKeyUsage(keyPurposes.Select(keyPurposeString => KeyPurposeIDUtil.ParseKeyPurpose(keyPurposeString)));
                 extensions.AddExtension(X509Extensions.ExtendedKeyUsage, false, ekuExtension);
             }
 
@@ -356,26 +353,6 @@ namespace ScepClient
                 rsaKeyPair.Private
             );
             return request;
-        }
-
-        /// <summary>
-        /// Pass a Key Purpose for Extended Key Usage either by name or by OID and get the corresponding BC type KeyPurposeID
-        /// </summary>
-        private static KeyPurposeID ParseKeyPurpose(string keyPurpose)
-        {
-            keyPurpose = keyPurpose.Replace(" ", string.Empty); // Remove spaces, as they don't appear in the BC KeyPurposeID names
-            keyPurpose = keyPurpose.Replace("Authentication", "Auth"); // The abbreviation in BC
-
-            IEnumerable<FieldInfo> knownKeyPurposeFields = typeof(KeyPurposeID).GetFields(BindingFlags.Static | BindingFlags.Public)
-                .Where(fieldCandidate => fieldCandidate.FieldType == typeof(KeyPurposeID) && !fieldCandidate.IsDefined(typeof(ObsoleteAttribute), false)); // get known Key Purposes from Bouncy Castle class
-
-            // now match key purposes either by name (partial) or by OID value (exact)
-            FieldInfo matchingPurpose = knownKeyPurposeFields
-                .SingleOrDefault(kpField =>
-                kpField.Name.ToUpperInvariant().Contains(keyPurpose.ToUpperInvariant()) ||
-                (kpField.GetValue(null)?.ToString().Equals(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ?? false));
-
-            return (KeyPurposeID)matchingPurpose?.GetValue(null);
         }
 
         private static void GenerateNew(string scepURL, string pfxOutputPath, string certOutputPath, string pkcs10OutputPath, string challengePassword, string cN, IEnumerable<string> additionalDNSEntries, IEnumerable<string> keyPurposes)
