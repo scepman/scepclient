@@ -9,7 +9,7 @@ namespace Common.Util
 {
     public static class KeyPurposeIDUtil
     {
-        private static readonly DerObjectIdentifier _documentSigning = new("1.3.6.1.5.5.7.3.36");
+        private static readonly DerObjectIdentifier _documentSigning = new DerObjectIdentifier("1.3.6.1.5.5.7.3.36");
 
         /// <summary>
         /// Pass a Key Purpose for Extended Key Usage either by name or by OID and get the corresponding BC type KeyPurposeID
@@ -30,12 +30,12 @@ namespace Common.Util
             // now match key purposes either by name (partial) or by OID value (exact)
             IEnumerable<FieldInfo> matchingPurposes = knownKeyPurposeFields
                 .Where(kpField =>
-                kpField.Name.Contains(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ||
+                kpField.Name.Contains(keyPurpose) ||
                 (kpField.GetValue(null)?.ToString().Equals(keyPurpose, StringComparison.InvariantCultureIgnoreCase) ?? false));
 
             if (matchingPurposes.Any())
             {
-                FieldInfo matchingPurpose = matchingPurposes.MinBy(x => x.Name.Length);
+                FieldInfo matchingPurpose = matchingPurposes.OrderByDescending(x => x.Name.Length).First();
                 return (KeyPurposeID)matchingPurpose?.GetValue(null);
             }
             throw new InvalidOperationException($"Invalid key purpose {keyPurpose}");
