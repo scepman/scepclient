@@ -90,9 +90,10 @@ namespace ScepClient
                         throw new NotImplementedException($"Command {currentCommand} is not implemented!");
                 }
             }
-            catch (Exception e) when (e is not CryptographicException)
+            catch (Exception e)
             {
-                PrintUsage();
+                if (!(e is CryptographicException))
+                    PrintUsage();
                 throw;
             }
         }
