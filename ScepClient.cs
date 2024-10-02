@@ -90,7 +90,7 @@ namespace ScepClient
                         throw new NotImplementedException($"Command {currentCommand} is not implemented!");
                 }
             }
-            catch
+            catch (Exception e) when (e is not CryptographicException)
             {
                 PrintUsage();
                 throw;
@@ -592,7 +592,36 @@ namespace ScepClient
 
             var envelopedCmsResponse = new EnvelopedCms();
             envelopedCmsResponse.Decode(signedResponse.ContentInfo.Content);
-            ExecuteCryptoMethodWithRetries(() => envelopedCmsResponse.Decrypt(new X509Certificate2Collection(ownKey)));
+            try
+            {
+                ExecuteCryptoMethodWithRetries(() => envelopedCmsResponse.Decrypt(new X509Certificate2Collection(ownKey)));
+            }
+            catch (CryptographicException cryptoEx)
+            {
+                Console.WriteLine("Decryption of SCEP response failed. HRESULT: 0x" + cryptoEx.HResult.ToString("X"));
+                Console.WriteLine("Dumping key information:");
+                RSA privKey = ownKey.GetRSAPrivateKey();
+                if (null == privKey)
+                    Console.WriteLine("Key is not RSA");
+                else
+                {
+                    Console.WriteLine("Key Object Type: " + privKey.ToString());
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                        if (privKey is RSACryptoServiceProvider rsaCsp)
+                        {
+                            Console.WriteLine("CSP: " + rsaCsp.CspKeyContainerInfo.ProviderName);
+                            Console.WriteLine("CSP Type: " + rsaCsp.CspKeyContainerInfo.ProviderType);
+                            Console.WriteLine("Key Container Name: " + rsaCsp.CspKeyContainerInfo.UniqueKeyContainerName);
+                        } else if (privKey is RSACng rsaCng)
+                        {
+                            Console.WriteLine("KSP: " + rsaCng.Key.Provider);
+                            Console.WriteLine("Key Usage: " + rsaCng.Key.KeyUsage);
+                            Console.WriteLine("Key Unique Name: " + rsaCng.Key.UniqueName);
+                        }
+                }
+
+                throw;
+            }
 
             byte[] binCertificateCollectionResponse = envelopedCmsResponse.ContentInfo.Content;
             return binCertificateCollectionResponse;
@@ -615,7 +644,7 @@ namespace ScepClient
                     if (++tryCount > MAX_TRY_COUNT)
                         throw;
                     else
-                        Console.WriteLine($"Decryption failed on try {tryCount}. Retrying automatically ...");
+                        Console.WriteLine($"Cryptographic operation failed on try {tryCount}. Retrying automatically ...");
                 }
             }
         }
