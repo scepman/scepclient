@@ -103,7 +103,7 @@ namespace ScepClient
         private static void PrintUsage()
         {
             Console.WriteLine("SCEPClient");
-            Console.WriteLine("2024 by glueckkanja, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
+            Console.WriteLine("2025 by glueckkanja, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
             Console.WriteLine();
             Console.WriteLine("Usage: ScepClient.exe <command> <URL> <further parameters...>");
             Console.WriteLine();
