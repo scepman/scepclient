@@ -545,15 +545,14 @@ namespace ScepClient
             signer.SignedAttributes.Add(messageType);
 
             // Tranaction ID (transId): https://tools.ietf.org/html/draft-nourse-scep-23#section-3.1.1.1
-            var sha = new SHA512Managed();
+            using SHA512 sha = SHA512.Create();
             var hashedKey = sha.ComputeHash(localPrivateKey.GetPublicKey());
             var hashedKeyString = Convert.ToBase64String(hashedKey);
             var transactionId = new Pkcs9AttributeObject(Oids.Scep.TransactionId, DerEncoding.EncodePrintableString(hashedKeyString));
             signer.SignedAttributes.Add(transactionId);
 
             // Sender Nonce (senderNonce): https://tools.ietf.org/html/draft-nourse-scep-23#section-3.1.1.5
-            lastSenderNonce = new byte[16];
-            RNGCryptoServiceProvider.Create().GetBytes(lastSenderNonce);
+            lastSenderNonce = RandomNumberGenerator.GetBytes(16);
             var nonce = new Pkcs9AttributeObject(Oids.Scep.SenderNonce, DerEncoding.EncodeOctet(lastSenderNonce));
             signer.SignedAttributes.Add(nonce);
 
