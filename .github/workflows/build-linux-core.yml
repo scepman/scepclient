@@ -13,7 +13,7 @@ jobs:
     container: mcr.microsoft.com/dotnet/sdk:6.0    
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Install dependencies
       run: dotnet restore -r linux-x64 ScepClient.csproj
     - name: Build
