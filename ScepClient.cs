@@ -12,16 +12,17 @@ using Org.BouncyCastle.X509;
 using System;
 using System.Collections.Generic;
 using System.DirectoryServices;
-using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading.Tasks;
 using AsnX509 = Org.BouncyCastle.Asn1.X509;
 using BCPkcs = Org.BouncyCastle.Asn1.Pkcs;
 using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
@@ -33,7 +34,7 @@ namespace ScepClient
     {
         private enum Command { gennew, gennewext, renew, submit, newdccert, newdccertext };
 
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             if (args.Length == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "/?")
             {
@@ -53,13 +54,13 @@ namespace ScepClient
                 switch (currentCommand)
                 {
                     case Command.newdccert:
-                        GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
+                        await GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 3 ? args[3] : null);
                         break;
                     case Command.newdccertext:
-                        GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
+                        await GenerateComputerCertificateRequest(scepURL, args[2], args.Length > 4 ? args[4] : null, additionalDNSEntries);
                         break;
                     case Command.gennew:
-                        GenerateNew(
+                        await GenerateNew(
                             scepURL,    // SCEP URL
                             args[2],    // PFX path
                             args[3],    // CER path
@@ -72,7 +73,7 @@ namespace ScepClient
                         break;
                     case Command.gennewext:
                         string[] additionalKeyPurposes = ReadListFromFile(args[4]);
-                        GenerateNew(
+                        await GenerateNew(
                             scepURL,    // SCEP URL
                             args[6],    // PFX path
                             args[7],    // CER path
@@ -84,10 +85,10 @@ namespace ScepClient
                         );
                         break;
                     case Command.renew:
-                        RenewCertificate(scepURL, args[2], args[3], args.Length > 4 ? args[4] : null);
+                        await RenewCertificate(scepURL, args[2], args[3], args.Length > 4 ? args[4] : null);
                         break;
                     case Command.submit:
-                        SubmitExistingPkcs10(scepURL, args[2], args[3], args[4]);
+                        await SubmitExistingPkcs10(scepURL, args[2], args[3], args[4]);
                         break;
                     default:
                         throw new NotImplementedException($"Command {currentCommand} is not implemented!");
@@ -103,7 +104,7 @@ namespace ScepClient
         private static void PrintUsage()
         {
             Console.WriteLine("SCEPClient");
-            Console.WriteLine("2025 by glueckkanja, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
+            Console.WriteLine("2026 by glueckkanja, based on https://stephenroughley.com/2015/09/22/a-c-net-scep-client/");
             Console.WriteLine();
             Console.WriteLine("Usage: ScepClient.exe <command> <URL> <further parameters...>");
             Console.WriteLine();
@@ -161,19 +162,19 @@ namespace ScepClient
             }
         }
 
-        private static void SubmitExistingPkcs10(string scepURL, string requestPfxPath, string requestPath, string certOutputPath)
+        private static async Task SubmitExistingPkcs10(string scepURL, string requestPfxPath, string requestPath, string certOutputPath)
         {
-            X509Certificate2 selfSignedCert = new X509Certificate2(requestPfxPath, "password");
+            X509Certificate2 selfSignedCert = X509CertificateLoader.LoadPkcs12FromFile(requestPfxPath, "password");
             byte[] pkcs10 = File.ReadAllBytes(requestPath);
 
-            byte[] binIssuedCertScepResponse = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
+            byte[] binIssuedCertScepResponse = await SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
             X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCertScepResponse);
             File.WriteAllBytes(certOutputPath, bcIssuedCert.GetEncoded());
         }
 
-        private static void RenewCertificate(string scepURL, string requestPfxPath, string certOutputPath, string pkcs10OutputPath)
+        private static async Task RenewCertificate(string scepURL, string requestPfxPath, string certOutputPath, string pkcs10OutputPath)
         {
-            X509Certificate2 originalCertificate = new X509Certificate2(requestPfxPath, "password");
+            X509Certificate2 originalCertificate = X509CertificateLoader.LoadPkcs12FromFile(requestPfxPath, "password");
             CertificateRequest csr = new CertificateRequest(originalCertificate.SubjectName, originalCertificate.PublicKey, HashAlgorithmName.SHA256);
             foreach (X509Extension ext in originalCertificate.Extensions)
                 csr.CertificateExtensions.Add(ext);
@@ -182,7 +183,7 @@ namespace ScepClient
             if (null != pkcs10OutputPath)
                 File.WriteAllBytes(pkcs10OutputPath, pkcs10);
 
-            byte[] binIssuedCertScepResponse = SubmitPkcs10ToScep(scepURL, pkcs10, originalCertificate, true);
+            byte[] binIssuedCertScepResponse = await SubmitPkcs10ToScep(scepURL, pkcs10, originalCertificate, true);
 
             X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCertScepResponse);
             File.WriteAllBytes(certOutputPath, bcIssuedCert.GetEncoded());
@@ -200,7 +201,7 @@ namespace ScepClient
 
         private const string MS_RSA_SCHANNEL_CSP = "Microsoft RSA SChannel Cryptographic Provider";
 
-        private static void GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
+        private static async Task GenerateComputerCertificateRequest(string scepURL, string challengePassword, string outputPath, IEnumerable<string> additionalDNSEntries = null)
         {
             bool useDebugOutput = !string.IsNullOrEmpty(outputPath);
             string pfxPassword = useDebugOutput ? "password" : PasswordForTemporaryKeys;
@@ -220,8 +221,8 @@ namespace ScepClient
 
             byte[] binIssuedCert;
 
-            using (X509Certificate2 selfSignedCert = new X509Certificate2(baSelfSignedCert, PasswordForTemporaryKeys))
-                binIssuedCert = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
+            using (X509Certificate2 selfSignedCert = X509CertificateLoader.LoadPkcs12(baSelfSignedCert, PasswordForTemporaryKeys))
+                binIssuedCert = await SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
 
             X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCert);
             byte[] issuedPkcs12 = SaveAsPkcs12(bcIssuedCert, rsaKeyPair, pfxPassword, MS_RSA_SCHANNEL_CSP); // Kerberos Authentication certificates are stored in this CSP
@@ -240,7 +241,7 @@ namespace ScepClient
         /// </summary>
         private static void ImportPFX2MachineStore(bool useDebugOutput, string pfxPassword, byte[] issuedPkcs12)
         {
-            using X509Certificate2 issuedCertificateAndPrivate = new X509Certificate2(issuedPkcs12, pfxPassword, X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet);
+            using X509Certificate2 issuedCertificateAndPrivate = X509CertificateLoader.LoadPkcs12(issuedPkcs12, pfxPassword, X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet);
             //using RSACng keyFromPFx = new RSACng();
             //keyFromPFx.FromXmlString(issuedCertificateAndPrivate.GetRSAPrivateKey().ToXmlString(true));
             //var keyData = keyFromPFx.Key.Export(CngKeyBlobFormat.GenericPrivateBlob);
@@ -388,7 +389,7 @@ namespace ScepClient
             return request;
         }
 
-        private static void GenerateNew(string scepURL, string pfxOutputPath, string certOutputPath, string pkcs10OutputPath, string challengePassword, string cN, IEnumerable<string> additionalDNSEntries, IEnumerable<string> keyPurposes)
+        private static async Task GenerateNew(string scepURL, string pfxOutputPath, string certOutputPath, string pkcs10OutputPath, string challengePassword, string cN, IEnumerable<string> additionalDNSEntries, IEnumerable<string> keyPurposes)
         {
             AsymmetricCipherKeyPair rsaKeyPair = GenerateRSAKeyPair(2048);
 
@@ -404,8 +405,8 @@ namespace ScepClient
 
             byte[] binIssuedCertSCEPResponse;
 
-            using (X509Certificate2 selfSignedCert = new X509Certificate2(baSelfSignedCert, PasswordForTemporaryKeys))
-                binIssuedCertSCEPResponse = SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
+            using (X509Certificate2 selfSignedCert = X509CertificateLoader.LoadPkcs12(baSelfSignedCert, PasswordForTemporaryKeys))
+                binIssuedCertSCEPResponse = await SubmitPkcs10ToScep(scepURL, pkcs10, selfSignedCert);
 
             X509Certificate bcIssuedCert = new X509CertificateParser().ReadCertificate(binIssuedCertSCEPResponse);
             File.WriteAllBytes(certOutputPath, bcIssuedCert.GetEncoded());
@@ -413,25 +414,26 @@ namespace ScepClient
             File.WriteAllBytes(pfxOutputPath, issuedPkcs12);
         }
 
-        private static byte[] SubmitPkcs10ToScep(string scepURL, byte[] pkcs10, X509Certificate2 signerCert, bool isRenewal = false)
+        private static async Task<byte[]> SubmitPkcs10ToScep(string scepURL, byte[] pkcs10, X509Certificate2 signerCert, bool isRenewal = false)
         {
-            var webClient = new WebClient();
+            HttpClient webClient = new HttpClient();
 
-            X509Certificate2Collection caChain = GetScepCaChain(scepURL, webClient);
+            X509Certificate2Collection caChain = await GetScepCaChain(scepURL, webClient);
 
             var encryptedMessageData = CreateEnvelopedDataPkcs7(pkcs10, caChain);
 
-            var encodedMessage = CreateSignedDataPkcs7(encryptedMessageData, signerCert, isRenewal ? 17 : 19); // 17 = Renewal Request, 19 = PKCSReq
+            byte[] encodedMessage = CreateSignedDataPkcs7(encryptedMessageData, signerCert, isRenewal ? 17 : 19); // 17 = Renewal Request, 19 = PKCSReq
 
-            byte[] data = webClient.UploadData(scepURL, encodedMessage);
+            HttpResponseMessage response = await webClient.PostAsync(scepURL, new ByteArrayContent(encodedMessage));
+            byte[] data = await response.Content.ReadAsByteArrayAsync();
             //byte[] data = SubmitRequestToScepWithGET(scepURL, webClient, encodedMessage);
 
             return ParseScepResponse(caChain, signerCert, data);
         }
 
-        private static X509Certificate2Collection GetScepCaChain(string scepURL, WebClient webClient)
+        private static async Task<X509Certificate2Collection> GetScepCaChain(string scepURL, HttpClient webClient)
         {
-            byte[] caCertData = webClient.DownloadData(string.Concat(scepURL, "?operation=GetCACert&message=ignored"));
+            byte[] caCertData = await webClient.GetByteArrayAsync(string.Concat(scepURL, "?operation=GetCACert&message=ignored"));
 
             var caCertChain = new X509Certificate2Collection();
             caCertChain.Import(caCertData);
