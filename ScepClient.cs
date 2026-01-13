@@ -12,6 +12,7 @@ using Org.BouncyCastle.X509;
 using System;
 using System.Collections.Generic;
 using System.DirectoryServices;
+using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Linq;
 using System.Net;
