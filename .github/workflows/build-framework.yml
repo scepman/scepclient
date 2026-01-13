@@ -13,7 +13,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v6
     
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v1
@@ -23,7 +23,7 @@ jobs:
     - name: Build
       run: msbuild -restore ScepClient.csproj /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile
     - name: Upload build artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v6
       with:
         name: scepclient-win-x64
         path: bin/Release/*
