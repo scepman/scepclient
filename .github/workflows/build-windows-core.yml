@@ -10,10 +10,10 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    container: mcr.microsoft.com/dotnet/sdk:6.0    
+    container: mcr.microsoft.com/dotnet/sdk:10.0
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Install dependencies
       run: dotnet restore -r win-x64 ScepClient.csproj
     - name: Build
@@ -21,7 +21,7 @@ jobs:
     - name: Publish
       run: dotnet publish -p:Version=1.2.$GITHUB_RUN_NUMBER.500 --configuration Release --no-restore -r win-x64 -p:PublishSingleFile=true --self-contained false ScepClient.csproj
     - name: Upload build artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: scepclient-win-x64
-        path: bin/Release/net6.0/win-x64/publish/*
+        path: bin/Release/net10.0/win-x64/publish/*

@@ -16,7 +16,7 @@ jobs:
       contents: write # This is required for creating a release (as using 'permissions:' will reset the default rights to 'none')
     steps:
       - name: Download artifact
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v12
         with:
           # Optional, GitHub token
           github_token: ${{secrets.GITHUB_TOKEN}}

@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("For .NET Framework 4.6.2")]
 [assembly: AssemblyCompany("glueckkanja-gab")]
 [assembly: AssemblyProduct("SCEPman")]
-[assembly: AssemblyCopyright("Copyright © 2022 glueckkanja-gab AG")]
+[assembly: AssemblyCopyright("Copyright © 2026 glueckkanja-gab AG")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
