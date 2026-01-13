@@ -6,7 +6,7 @@ Can be used to extend [SCEPman](https://www.scepman.com/) to easily distribute K
 
 ## Prerequisites
 
-The .NET Core version requires the [.NET Core 6 Runtime](https://dotnet.microsoft.com/download/dotnet-core/6.0). You need only the simple runtime, Desktop or ASP.NET may be used, but are not required.
+The .NET Core version requires the [.NET Core 10 Runtime](https://dotnet.microsoft.com/download/dotnet-core/10.0). You need only the simple runtime, Desktop or ASP.NET may be used, but are not required.
 
 There is also a version for .NET Framework 4.6.2 available that runs directly on Windows Server 2012 R2 and newer.
 
