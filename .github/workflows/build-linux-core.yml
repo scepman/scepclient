@@ -24,4 +24,4 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: scepclient-linux-x64
-        path: bin/Release/net6.0/linux-x64/publish/*
+        path: bin/Release/net10.0/linux-x64/publish/*
