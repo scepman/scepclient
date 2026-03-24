@@ -21,7 +21,7 @@ jobs:
     - name: Publish
       run: dotnet publish -p:Version=1.2.$GITHUB_RUN_NUMBER.500 --configuration Release --no-restore -r win-x64 -p:PublishSingleFile=true --no-self-contained ScepClient.csproj
     - name: Upload build artifact
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: scepclient-win-x64
         path: bin/Release/net10.0/win-x64/publish/*
