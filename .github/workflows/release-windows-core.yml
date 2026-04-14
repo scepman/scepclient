@@ -14,23 +14,25 @@ jobs:
     permissions:
       id-token: write # This is required for requesting the JWT
       contents: write # This is required for creating a release (as using 'permissions:' will reset the default rights to 'none')
+      actions: read # This is required for gh run list and gh run download
     steps:
-      - name: Download artifact
-        uses: dawidd6/action-download-artifact@8a338493df3d275e4a7a63bcff3b8fe97e51a927 # v19
-        with:
-          # Optional, GitHub token
-          github_token: ${{secrets.GITHUB_TOKEN}}
-          # Required, workflow file name or ID
-          workflow: build-windows-core.yml
-          # Optional, the conclusion of a completed workflow to search for
-          # Can be one of:
-          # "failure", "success", "neutral", "cancelled", "skipped", "timed_out", "action_required"
-          # Ignores conclusion by default (thus using the most recent completed run when no other option is specified, regardless of conclusion)
-          workflow_conclusion: success
-          # Optional, will use the branch
-          branch: main
-          # Optional, directory where to extract artifact
-          path: publish
+      - name: Download artifact from build workflow
+        # actions/download-artifact (the official action) only works within the same workflow run.
+        # Since we need artifacts from a different workflow (build-windows-core.yml) on a specific branch,
+        # we use the gh CLI instead. It is pre-installed on GitHub-hosted runners and maintained
+        # by GitHub, so it needs no third-party action dependency.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-windows-core.yml --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
+            echo "ERROR: No successful build-windows-core.yml run found on main"
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow build-windows-core.yml --branch main --limit 5
+            exit 1
+          fi
+          echo "Downloading artifacts from run $run_id"
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --dir publish
 
       - name: Install AzureSignTool
         run: dotnet tool install --no-cache --global AzureSignTool
