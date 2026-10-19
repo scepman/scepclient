@@ -38,7 +38,7 @@ jobs:
         run: dotnet tool install --no-cache --global AzureSignTool
   
       - name: Azure CLI login
-        uses: azure/login@v3
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           tenant-id: a53834b7-42bc-46a3-b004-369735c3acf9 # c4a8.onmicrosoft.com
           client-id: 97676fd8-6001-4096-be4a-fbed37f1355b # from Entra ID app registration
@@ -71,11 +71,8 @@ jobs:
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        uses: ncipollo/release-action@v1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          artifacts: scepclient-core-win-x64.zip
-          tag: ${{ steps.create_tag.outputs.tag }}
-          artifactContentType: application/zip
-          makeLatest: true
+          TAG: ${{ steps.create_tag.outputs.tag }}
+        shell: bash
+        run: gh release create "$TAG" scepclient-core-win-x64.zip --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "" --latest

@@ -43,11 +43,7 @@ jobs:
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        uses: ncipollo/release-action@v1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          artifacts: scepclient-core-linux-x64.zip
-          tag: ${{ steps.create_tag.outputs.tag }}
-          artifactContentType: application/zip
-          makeLatest: false
+          TAG: ${{ steps.create_tag.outputs.tag }}
+        run: gh release create "$TAG" scepclient-core-linux-x64.zip --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "" --latest=false
