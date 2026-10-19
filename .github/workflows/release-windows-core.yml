@@ -54,7 +54,7 @@ jobs:
         run: |
           azuresigntool.exe sign --verbose `
             --azure-key-vault-url "https://kv-c4a8-code-signing-prd.vault.azure.net" `
-            --azure-key-vault-accesstoken ${{ env.CODE_SIGN_AKV_ACCESS_TOKEN }} `
+            --azure-key-vault-accesstoken $env:CODE_SIGN_AKV_ACCESS_TOKEN `
             --azure-key-vault-certificate "glueckkanja-ag-202311" `
             --timestamp-rfc3161 "http://timestamp.digicert.com" `
             publish/scepclient-win-x64/ScepClient.exe
