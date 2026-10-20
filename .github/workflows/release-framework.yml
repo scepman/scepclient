@@ -15,6 +15,12 @@ jobs:
       id-token: write # This is required for requesting the JWT
       contents: write # This is required for creating a release (as using 'permissions:' will reset the default rights to 'none')
       actions: read # This is required for gh run list and gh run download
+    env:
+      CODE_SIGN_TENANT_ID: a53834b7-42bc-46a3-b004-369735c3acf9 # c4a8.onmicrosoft.com
+      CODE_SIGN_KEY_VAULT_URL: https://kv-c4a8-code-signing-prd.vault.azure.net
+      CODE_SIGN_TIMESTAMP_URL: http://timestamp.acs.microsoft.com
+      CODE_SIGN_CLIENT_ID: e9310a4f-a6b0-4374-a623-1333cbc62f96 # from Entra ID app registration
+      CODE_SIGN_CERTIFICATE_NAME: scepman # name of Azure Key Vault HSM certificate to use for signing
     steps:
       - name: Download artifact from build workflow
         # actions/download-artifact (the official action) only works within the same workflow run.
@@ -53,10 +59,10 @@ jobs:
       - name: Code-sign the extracted exe
         run: |
           azuresigntool.exe sign --verbose `
-            --azure-key-vault-url "https://kv-c4a8-code-signing-prd.vault.azure.net" `
+            --azure-key-vault-url "${{ env.CODE_SIGN_KEY_VAULT_URL }}" `
             --azure-key-vault-accesstoken $env:CODE_SIGN_AKV_ACCESS_TOKEN `
-            --azure-key-vault-certificate "glueckkanja-ag-202311" `
-            --timestamp-rfc3161 "http://timestamp.digicert.com" `
+            --azure-key-vault-certificate "${{ env.CODE_SIGN_CERTIFICATE_NAME }}" `
+            --timestamp-rfc3161 "${{ env.CODE_SIGN_TIMESTAMP_URL }}" `
             publish/scepclient-win-x64/ScepClient.exe
 
         # Now we do not have the ZIP anymore, so we must re-zip the extracted exe
